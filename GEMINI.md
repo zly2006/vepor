@@ -14,6 +14,12 @@ This document provides instructions for the Gemini Coder to interact with the `v
 * 不要尝试自己rollback。如果gradle成功及时commit，回滚自己的修改必须使用git来操作。
 *   **Task Completion Notification:** Use `terminal-notifier -title "任务提醒" -message "任务已完成" -sound default` to notify the user upon task completion. The message text can be varied according to the work content.
 
+### Current Progress
+
+*   **Boolean Operations UI:** The UI and selection logic for all boolean operation tools (Intersection, Union, Difference, Xor) is implemented.
+*   **Intersection Display:** When two shapes are selected with the "Intersection" tool, the intersection points are calculated and displayed.
+*   **Boolean Operation Stubs:** The `compute_union`, `compute_subtract`, and `compute_xor` functions are placeholders. They are wired to the UI, but do not yet produce correct geometric results.
+
 ### Project Overview
 
 `vepor` is a Rust library for performing boolean operations (Union, Subtract, XOR) on 2D shapes with precise geometric intersection calculations. It is a command-line application that also provides a viewer to visualize the shapes and their intersections.

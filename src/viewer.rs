@@ -1,11 +1,13 @@
 use eframe::egui;
 use crate::types::{Point, PathSegment, ResolvedShape};
+use std::sync::Arc;
 
 pub struct ShapeViewer {
     shapes: Vec<(ResolvedShape, egui::Color32, String)>, // shape, color, name
     scale: f32,
     offset: egui::Vec2,
     show_grid: bool,
+    previous_scale: f32, // 用于跟踪 scale 的变化
 }
 
 impl Default for ShapeViewer {
@@ -15,6 +17,7 @@ impl Default for ShapeViewer {
             scale: 10.0,
             offset: egui::Vec2::new(0.0, 0.0),
             show_grid: true,
+            previous_scale: 10.0,
         }
     }
 }
@@ -191,12 +194,21 @@ impl eframe::App for ShapeViewer {
                 if ui.button("Reset View").clicked() {
                     self.offset = egui::Vec2::new(0.0, 0.0);
                     self.scale = 10.0;
+                    self.previous_scale = 10.0;
                 }
 
                 ui.checkbox(&mut self.show_grid, "Show Grid");
 
                 ui.label("Zoom:");
+                let old_scale = self.scale;
                 ui.add(egui::Slider::new(&mut self.scale, 1.0..=50.0).text("scale"));
+
+                // 当 scale 改变时，调整 offset 以保持视觉中心不变
+                if (self.scale - old_scale).abs() > 0.001 {
+                    let scale_ratio = self.scale / old_scale;
+                    self.offset = self.offset * scale_ratio;
+                    self.previous_scale = self.scale;
+                }
             });
 
             ui.separator();
@@ -234,7 +246,69 @@ pub fn run_viewer(shapes: Vec<(ResolvedShape, egui::Color32, String)>) -> Result
     eframe::run_native(
         "Vepor Shape Viewer",
         options,
-        Box::new(|_cc| Ok(Box::new(viewer))),
+        Box::new(|cc| {
+            setup_chinese_fonts(&cc.egui_ctx);
+            Ok(Box::new(viewer))
+        }),
     )
+}
+
+/// 设置中文字体支持
+fn setup_chinese_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+
+    println!("开始加载中文字体...");
+
+    // 尝试多个可能的中文字体路径
+    let font_paths = vec![
+        "/System/Library/Fonts/PingFang.ttc",
+        "/System/Library/Fonts/Supplemental/Songti.ttc",
+        "/System/Library/Fonts/Supplemental/STHeiti Light.ttc",
+        "/System/Library/Fonts/Supplemental/STHeiti Medium.ttc",
+        "/Library/Fonts/Arial Unicode.ttf",
+    ];
+
+    let mut font_loaded = false;
+    for (idx, font_path) in font_paths.iter().enumerate() {
+        println!("尝试加载字体: {}", font_path);
+        if let Ok(font_data) = std::fs::read(font_path) {
+            println!("成功读取字体文件: {} ({} bytes)", font_path, font_data.len());
+            let font_name = format!("ChineseFont{}", idx);
+            fonts.font_data.insert(
+                font_name.clone(),
+                Arc::new(egui::FontData::from_owned(font_data)),
+            );
+
+            // 将中文字体添加到字体家族（放在最前面以优先使用）
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .insert(0, font_name.clone());
+
+            fonts
+                .families
+                .entry(egui::FontFamily::Monospace)
+                .or_default()
+                .insert(0, font_name);
+
+            font_loaded = true;
+            println!("✓ 成功加载字体: {}", font_path);
+            break;
+        } else {
+            println!("✗ 无法读取字体: {}", font_path);
+        }
+    }
+
+    if !font_loaded {
+        eprintln!("警告: 未能加载任何中文字体，中文可能无法正常显示");
+        eprintln!("请确保系统中存在以下字体之一:");
+        for path in &font_paths {
+            eprintln!("  - {}", path);
+        }
+    }
+
+    ctx.set_fonts(fonts);
+    println!("字体设置完成");
 }
 

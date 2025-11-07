@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 #[derive(PartialEq, Clone, Copy, Debug)]
 enum Tool {
-    None,
+    Hand, // For panning and selecting
     Circle,
     Rectangle,
     Intersection,
@@ -14,6 +14,12 @@ enum Tool {
     MeasureArea,
 }
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum DrawingState {
+    None,
+    CircleFirstClick(Point),
+}
+
 pub struct ShapeViewer {
     shapes: Vec<(ResolvedShape, egui::Color32, String)>, // shape, color, name
     scale: f32,
@@ -21,6 +27,7 @@ pub struct ShapeViewer {
     show_grid: bool,
     previous_scale: f32, // 用于跟踪 scale 的变化
     selected_tool: Tool,
+    drawing_state: DrawingState,
 }
 
 impl Default for ShapeViewer {
@@ -31,7 +38,8 @@ impl Default for ShapeViewer {
             offset: egui::Vec2::new(0.0, 0.0),
             show_grid: true,
             previous_scale: 10.0,
-            selected_tool: Tool::None,
+            selected_tool: Tool::Hand,
+            drawing_state: DrawingState::None,
         }
     }
 }
@@ -55,6 +63,14 @@ impl ShapeViewer {
             center.x + (point.x as f32 * self.scale) + self.offset.x,
             center.y - (point.y as f32 * self.scale) + self.offset.y, // Flip Y axis
         )
+    }
+
+    fn screen_to_world(&self, pos: egui::Pos2, rect: egui::Rect) -> Point {
+        let center = rect.center();
+        Point {
+            x: ((pos.x - center.x - self.offset.x) / self.scale) as f64,
+            y: ((center.y - pos.y + self.offset.y) / self.scale) as f64, // Flip Y axis
+        }
     }
 
     fn draw_grid(&self, painter: &egui::Painter, rect: egui::Rect) {
@@ -203,7 +219,7 @@ impl ShapeViewer {
     pub fn draw(&mut self, ui: &mut egui::Ui) {
         let (response, painter) = ui.allocate_painter(
             egui::Vec2::new(ui.available_width(), ui.available_height()),
-            egui::Sense::drag(),
+            egui::Sense::click_and_drag(),
         );
 
         let rect = response.rect;
@@ -213,9 +229,57 @@ impl ShapeViewer {
             self.draw_grid(&painter, rect);
         }
 
-        // Handle dragging
-        if response.dragged() {
+        // Handle dragging for panning
+        if response.dragged() && self.selected_tool == Tool::Hand {
             self.offset += response.drag_delta();
+        }
+
+        // Handle clicks for drawing
+        if response.clicked() {
+            if let Some(mouse_pos) = response.hover_pos() {
+                let world_pos = self.screen_to_world(mouse_pos, rect);
+                match self.selected_tool {
+                    Tool::Circle => {
+                        match self.drawing_state {
+                            DrawingState::None => {
+                                self.drawing_state = DrawingState::CircleFirstClick(world_pos);
+                            }
+                            DrawingState::CircleFirstClick(center) => {
+                                let radius = center.distance_to(world_pos);
+                                let new_shape = ResolvedShape {
+                                    segments: vec![PathSegment::Arc(
+                                        center, radius, 0.0, 360.0,
+                                    )],
+                                };
+                                self.add_shape(
+                                    new_shape,
+                                    egui::Color32::from_rgb(255, 0, 0),
+                                    "Circle".to_string(),
+                                );
+                                self.drawing_state = DrawingState::None;
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Draw preview of shape being drawn
+        if let Some(mouse_pos) = response.hover_pos() {
+            let world_pos = self.screen_to_world(mouse_pos, rect);
+            match self.drawing_state {
+                DrawingState::CircleFirstClick(center) => {
+                    let radius = center.distance_to(world_pos);
+                    let circle = egui::Shape::circle_stroke(
+                        self.world_to_screen(center, rect),
+                        radius as f32 * self.scale,
+                        egui::Stroke::new(1.0, egui::Color32::from_rgb(255, 0, 0)),
+                    );
+                    painter.add(circle);
+                }
+                _ => {}
+            }
         }
 
         // Draw all shapes
@@ -268,6 +332,9 @@ impl eframe::App for ShapeViewer {
                 ui.heading("工具");
                 ui.separator();
 
+                let previous_tool = self.selected_tool;
+
+                ui.selectable_value(&mut self.selected_tool, Tool::Hand, "移动画布");
                 ui.selectable_value(&mut self.selected_tool, Tool::Circle, "画圆");
                 ui.selectable_value(&mut self.selected_tool, Tool::Rectangle, "画矩形");
                 ui.selectable_value(&mut self.selected_tool, Tool::Intersection, "取交点");
@@ -276,11 +343,11 @@ impl eframe::App for ShapeViewer {
                 ui.selectable_value(&mut self.selected_tool, Tool::Xor, "取异或");
                 ui.selectable_value(&mut self.selected_tool, Tool::MeasureArea, "测量面积");
 
-                ui.separator();
-
-                if ui.button("清除工具").clicked() {
-                    self.selected_tool = Tool::None;
+                if self.selected_tool != previous_tool {
+                    self.drawing_state = DrawingState::None;
                 }
+
+                ui.separator();
 
                 // 显示当前选择的工具
                 ui.label(format!("当前工具: {:?}", self.selected_tool));

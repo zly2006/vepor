@@ -7,212 +7,32 @@ mod resolver;
 use types::{Point, Shape};
 use resolver::resolve_shape;
 use boolean_ops::{find_shape_intersections, compute_area, compute_signed_area, is_shape_counter_clockwise};
+use crate::geometry::signed_area_of_path;
 use crate::intersection::line_line_intersection;
+use crate::types::PathSegment;
 
 fn main() {
-    println!("=== Testing Boolean Operations on Shapes ===\n");
+    let radius = 5.0;
+    let center = Point { x: 1.0, y: 3.0 };
 
-    // Test 1: Circle and Rectangle intersection
-    println!("TEST 1: Circle-Rectangle Intersection");
-    println!("=====================================");
-    let circle1 = Shape::Circle {
-        center: Point { x: 10.0, y: 10.0 },
-        radius: 5.0,
-    };
+    // Use single full circle arc for comparison
+    let segments = vec![
+        PathSegment::Arc(center, radius, 0.0, 360.0),
+    ];
 
-    let rectangle1 = Shape::Rectangle {
-        top_left: Point { x: 8.0, y: 8.0 },
-        bottom_right: Point { x: 15.0, y: 12.0 },
-    };
+    let area_full = signed_area_of_path(&segments);
 
-    // Union
-    println!("1. UNION Operation:");
-    let union_shape = Shape::Union(Box::new(circle1), Box::new(rectangle1));
-    let resolved_union = resolve_shape(&union_shape);
-    println!("   Result: {} segments", resolved_union.segments.len());
+    // Now try with multiple arcs
+    let segments_multi = vec![
+        PathSegment::Arc(center, radius, 0.0, 70.0),
+        PathSegment::Arc(center, radius, 70.0, 160.0),
+        PathSegment::Arc(center, radius, 160.0, 270.0),
+        PathSegment::Arc(center, radius, 270.0, 360.0),
+    ];
 
-    // Show the actual intersections
-    let c1 = resolve_shape(&Shape::Circle {
-        center: Point { x: 10.0, y: 10.0 },
-        radius: 5.0,
-    });
-    let r1 = resolve_shape(&Shape::Rectangle {
-        top_left: Point { x: 8.0, y: 8.0 },
-        bottom_right: Point { x: 15.0, y: 12.0 },
-    });
-    let intersections1 = find_shape_intersections(&c1, &r1);
-    println!("   Intersection points found: {}", intersections1.len());
-    for (i, pt) in intersections1.iter().enumerate() {
-        println!("     Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
-    }
-
-    // Subtract
-    println!("\n2. SUBTRACT Operation:");
-    let circle2 = Shape::Circle {
-        center: Point { x: 10.0, y: 10.0 },
-        radius: 5.0,
-    };
-
-    let rectangle2 = Shape::Rectangle {
-        top_left: Point { x: 8.0, y: 8.0 },
-        bottom_right: Point { x: 15.0, y: 12.0 },
-    };
-
-    let subtract_shape = Shape::Subtract(Box::new(circle2), Box::new(rectangle2));
-    let resolved_subtract = resolve_shape(&subtract_shape);
-    println!("   Result: {} segments", resolved_subtract.segments.len());
-
-    // Xor
-    println!("\n3. XOR Operation:");
-    let circle3 = Shape::Circle {
-        center: Point { x: 10.0, y: 10.0 },
-        radius: 5.0,
-    };
-
-    let rectangle3 = Shape::Rectangle {
-        top_left: Point { x: 8.0, y: 8.0 },
-        bottom_right: Point { x: 15.0, y: 12.0 },
-    };
-
-    let xor_shape = Shape::Xor(Box::new(circle3), Box::new(rectangle3));
-    let resolved_xor = resolve_shape(&xor_shape);
-    println!("   Result: {} segments", resolved_xor.segments.len());
-
-    // Test 2: Two circles with various overlap conditions
-    println!("\n\nTEST 2: Circle-Circle Intersections");
-    println!("====================================");
-
-    // Case 1: Two intersecting circles
-    println!("Case 1: Two intersecting circles");
-    let c1 = resolve_shape(&Shape::Circle {
-        center: Point { x: 0.0, y: 0.0 },
-        radius: 5.0,
-    });
-    let c2 = resolve_shape(&Shape::Circle {
-        center: Point { x: 6.0, y: 0.0 },
-        radius: 5.0,
-    });
-    let ints = find_shape_intersections(&c1, &c2);
-    println!("  Found {} intersection points", ints.len());
-    for (i, pt) in ints.iter().enumerate() {
-        println!("    Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
-    }
-
-    // Case 2: Tangent circles (external)
-    println!("\nCase 2: Externally tangent circles");
-    let c3 = resolve_shape(&Shape::Circle {
-        center: Point { x: 0.0, y: 0.0 },
-        radius: 3.0,
-    });
-    let c4 = resolve_shape(&Shape::Circle {
-        center: Point { x: 6.0, y: 0.0 },
-        radius: 3.0,
-    });
-    let ints2 = find_shape_intersections(&c3, &c4);
-    println!("  Found {} intersection points", ints2.len());
-    for (i, pt) in ints2.iter().enumerate() {
-        println!("    Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
-    }
-
-    // Case 3: Separate circles (no intersection)
-    println!("\nCase 3: Separate circles (no intersection)");
-    let c5 = resolve_shape(&Shape::Circle {
-        center: Point { x: 0.0, y: 0.0 },
-        radius: 2.0,
-    });
-    let c6 = resolve_shape(&Shape::Circle {
-        center: Point { x: 10.0, y: 0.0 },
-        radius: 2.0,
-    });
-    let ints3 = find_shape_intersections(&c5, &c6);
-    println!("  Found {} intersection points (expected: 0)", ints3.len());
-
-    // Test 3: Line-Line intersections with edge cases
-    println!("\n\nTEST 3: Line-Line Intersections");
-    println!("================================");
-
-    // Case 1: Intersecting lines
-    println!("Case 1: Intersecting lines");
-    let pts = line_line_intersection(
-        Point { x: 0.0, y: 0.0 },
-        Point { x: 10.0, y: 10.0 },
-        Point { x: 0.0, y: 10.0 },
-        Point { x: 10.0, y: 0.0 }
-    );
-    println!("  Found {} intersection points", pts.len());
-    for (i, pt) in pts.iter().enumerate() {
-        println!("    Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
-    }
-
-    // Case 2: Parallel lines (no intersection)
-    println!("\nCase 2: Parallel lines");
-    let pts2 = line_line_intersection(
-        Point { x: 0.0, y: 0.0 },
-        Point { x: 10.0, y: 0.0 },
-        Point { x: 0.0, y: 5.0 },
-        Point { x: 10.0, y: 5.0 }
-    );
-    println!("  Found {} intersection points (expected: 0)", pts2.len());
-
-    // Case 3: Non-intersecting segments (lines would intersect but segments don't)
-    println!("\nCase 3: Non-intersecting segments");
-    let pts3 = line_line_intersection(
-        Point { x: 0.0, y: 0.0 },
-        Point { x: 2.0, y: 2.0 },
-        Point { x: 5.0, y: 5.0 },
-        Point { x: 10.0, y: 10.0 }
-    );
-    println!("  Found {} intersection points (expected: 0)", pts3.len());
-
-    // Test 4: Area calculations
-    println!("\n\nTEST 4: Area Calculations");
-    println!("==========================");
-
-    // Circle area
-    println!("Case 1: Circle area");
-    let circle = resolve_shape(&Shape::Circle {
-        center: Point { x: 0.0, y: 0.0 },
-        radius: 5.0,
-    });
-    let circle_area = compute_area(&circle);
-    let circle_signed_area = compute_signed_area(&circle);
-    println!("  Circle (radius=5):");
-    println!("    Absolute area: {:.4}", circle_area);
-    println!("    Signed area: {:.4}", circle_signed_area);
-    println!("    Expected: {:.4} (π*r²)", std::f64::consts::PI * 25.0);
-    println!("    Counter-clockwise: {}", is_shape_counter_clockwise(&circle));
-
-    // Rectangle area
-    println!("\nCase 2: Rectangle area");
-    let rect = resolve_shape(&Shape::Rectangle {
-        top_left: Point { x: 0.0, y: 0.0 },
-        bottom_right: Point { x: 10.0, y: 5.0 },
-    });
-    let rect_area = compute_area(&rect);
-    let rect_signed_area = compute_signed_area(&rect);
-    println!("  Rectangle (10x5):");
-    println!("    Absolute area: {:.4}", rect_area);
-    println!("    Signed area: {:.4}", rect_signed_area);
-    println!("    Expected: 50.0");
-    println!("    Counter-clockwise: {}", is_shape_counter_clockwise(&rect));
-
-    // Union area
-    println!("\nCase 3: Union area approximation");
-    let c1 = Shape::Circle {
-        center: Point { x: 0.0, y: 0.0 },
-        radius: 5.0,
-    };
-    let c2 = Shape::Circle {
-        center: Point { x: 6.0, y: 0.0 },
-        radius: 5.0,
-    };
-    let union = Shape::Union(Box::new(c1), Box::new(c2));
-    let union_resolved = resolve_shape(&union);
-    let union_area = compute_area(&union_resolved);
-    println!("  Union of two overlapping circles:");
-    println!("    Computed area: {:.4}", union_area);
-    println!("    Note: This is an approximation based on the resolved segments");
-
-    println!("\n=== All tests completed successfully ===");
+    let area_multi = signed_area_of_path(&segments_multi);
+    println!("Area with single full arc: {}", area_full);
+    println!("Area with multiple arcs: {}", area_multi);
+    println!("25 pi is approximately: {}", 25.0 * std::f64::consts::PI);
 }
 

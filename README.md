@@ -31,8 +31,11 @@ Basic geometric utility functions:
 - `is_angle_in_arc()`: Check if an angle is within an arc range
 - `get_starting_point()`: Get the starting point of a path
 - `get_segment_midpoint()`: Get the midpoint of a segment
+- **`signed_area_of_path()`**: Calculate signed area of a closed path
+- **`area_of_path()`**: Calculate absolute area of a closed path
+- **`is_counter_clockwise()`**: Check if a path is counter-clockwise
 
-**Tests**: 5 unit tests
+**Tests**: 12 unit tests
 
 ### `intersection.rs`
 Intersection calculation functions with precise edge case handling:
@@ -49,8 +52,11 @@ Boolean operations on shapes:
 - `compute_union()`: Compute the union of two shapes
 - `compute_subtract()`: Subtract one shape from another
 - `compute_xor()`: Compute the XOR of two shapes
+- **`compute_signed_area()`**: Calculate signed area of a resolved shape
+- **`compute_area()`**: Calculate absolute area of a resolved shape
+- **`is_shape_counter_clockwise()`**: Check shape orientation
 
-**Tests**: 3 unit tests
+**Tests**: 7 unit tests
 
 ### `resolver.rs`
 Shape resolution logic:
@@ -80,10 +86,10 @@ cargo run
 
 ## Test Coverage
 
-Total: **19 unit tests**
-- geometry: 5 tests
-- intersection: 7 tests
-- boolean_ops: 3 tests
+Total: **43 unit tests**
+- geometry: 12 tests
+- intersection: 20 tests
+- boolean_ops: 7 tests
 - resolver: 4 tests
 
 All tests verify:
@@ -92,13 +98,16 @@ All tests verify:
 - Boundary conditions
 - Angle range handling
 - Shape containment logic
+- **Signed area calculations**
+- **Path orientation detection**
 
 ## Key Features
 
 ✅ **Precise intersection calculation**: All intersections computed using exact geometric equations  
 ✅ **Angle-aware arc handling**: Properly handles arc angle ranges, including arcs crossing 0°  
 ✅ **Edge case coverage**: Handles degenerate cases, tangent conditions, and boundary conditions  
-✅ **Comprehensive testing**: 19 unit tests covering all critical paths  
+✅ **Signed area calculation**: Compute area and orientation of closed paths with lines and arcs  
+✅ **Comprehensive testing**: 43 unit tests covering all critical paths  
 ✅ **Modular design**: Clean separation of concerns across modules  
 
 ## Example Usage
@@ -106,6 +115,7 @@ All tests verify:
 ```rust
 use vepor::types::{Point, Shape};
 use vepor::resolver::resolve_shape;
+use vepor::boolean_ops::{compute_area, is_shape_counter_clockwise};
 
 let circle = Shape::Circle {
     center: Point { x: 10.0, y: 10.0 },
@@ -120,6 +130,14 @@ let rectangle = Shape::Rectangle {
 // Union of two shapes
 let union = Shape::Union(Box::new(circle), Box::new(rectangle));
 let resolved = resolve_shape(&union);
+
+// Calculate area
+let area = compute_area(&resolved);
+println!("Union area: {:.2}", area);
+
+// Check orientation
+let is_ccw = is_shape_counter_clockwise(&resolved);
+println!("Counter-clockwise: {}", is_ccw);
 ```
 
 ## License

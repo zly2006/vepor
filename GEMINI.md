@@ -12,6 +12,7 @@ This document provides instructions for the Gemini Coder to interact with the `v
 *   **Use `replace` Tool:** For file modifications, use the `replace` tool instead of shell commands.
 * 每次开始前都要执行检查git状态
 * 不要尝试自己rollback。如果gradle成功及时commit，回滚自己的修改必须使用git来操作。
+*   **Task Completion Notification:** Use `terminal-notifier -title "任务提醒" -message "任务已完成" -sound default` to notify the user upon task completion. The message text can be varied according to the work content.
 
 ### Project Overview
 

@@ -14,6 +14,52 @@ pub fn line_line_intersection(l1_start: Point, l1_end: Point, l2_start: Point, l
     let x4 = l2_end.x;
     let y4 = l2_end.y;
 
+    // Check if either segment is actually a point
+    let l1_is_point = (x1 - x2).abs() < 1e-10 && (y1 - y2).abs() < 1e-10;
+    let l2_is_point = (x3 - x4).abs() < 1e-10 && (y3 - y4).abs() < 1e-10;
+
+    if l1_is_point && l2_is_point {
+        // Both are points - check if they're the same
+        if (x1 - x3).abs() < 1e-10 && (y1 - y3).abs() < 1e-10 {
+            intersections.push(Point { x: x1, y: y1 });
+        }
+        return intersections;
+    }
+
+    if l1_is_point {
+        // Check if point l1 is on line segment l2
+        let t = if (x4 - x3).abs() > (y4 - y3).abs() {
+            (x1 - x3) / (x4 - x3)
+        } else {
+            (y1 - y3) / (y4 - y3)
+        };
+        if t >= -1e-10 && t <= 1.0 + 1e-10 {
+            let px = x3 + t * (x4 - x3);
+            let py = y3 + t * (y4 - y3);
+            if (px - x1).abs() < 1e-10 && (py - y1).abs() < 1e-10 {
+                intersections.push(Point { x: x1, y: y1 });
+            }
+        }
+        return intersections;
+    }
+
+    if l2_is_point {
+        // Check if point l2 is on line segment l1
+        let t = if (x2 - x1).abs() > (y2 - y1).abs() {
+            (x3 - x1) / (x2 - x1)
+        } else {
+            (y3 - y1) / (y2 - y1)
+        };
+        if t >= -1e-10 && t <= 1.0 + 1e-10 {
+            let px = x1 + t * (x2 - x1);
+            let py = y1 + t * (y2 - y1);
+            if (px - x3).abs() < 1e-10 && (py - y3).abs() < 1e-10 {
+                intersections.push(Point { x: x3, y: y3 });
+            }
+        }
+        return intersections;
+    }
+
     let denom = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
 
     if denom.abs() < 1e-10 {
@@ -270,6 +316,239 @@ mod tests {
             360.0
         );
         assert_eq!(pts.len(), 0);
+    }
+
+    // Edge case tests: Endpoint intersections
+
+    #[test]
+    fn test_line_line_endpoint_intersection() {
+        // Two line segments meeting at endpoint (0,0)
+        let pts = line_line_intersection(
+            Point { x: -5.0, y: 0.0 },
+            Point { x: 0.0, y: 0.0 },
+            Point { x: 0.0, y: 0.0 },
+            Point { x: 5.0, y: 5.0 }
+        );
+        assert_eq!(pts.len(), 1, "Should find endpoint intersection");
+        assert!((pts[0].x - 0.0).abs() < 1e-10);
+        assert!((pts[0].y - 0.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_line_line_endpoint_on_segment() {
+        // Endpoint of line1 is on the middle of line2
+        let pts = line_line_intersection(
+            Point { x: 0.0, y: 5.0 },
+            Point { x: 5.0, y: 5.0 },
+            Point { x: 0.0, y: 0.0 },
+            Point { x: 0.0, y: 10.0 }
+        );
+        assert_eq!(pts.len(), 1, "Should find intersection at endpoint");
+        assert!((pts[0].x - 0.0).abs() < 1e-10);
+        assert!((pts[0].y - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_line_line_t_intersection() {
+        // T-shaped intersection where one line ends at the middle of another
+        let pts = line_line_intersection(
+            Point { x: 5.0, y: 0.0 },
+            Point { x: 5.0, y: 5.0 },
+            Point { x: 0.0, y: 5.0 },
+            Point { x: 10.0, y: 5.0 }
+        );
+        assert_eq!(pts.len(), 1, "Should find T-intersection");
+        assert!((pts[0].x - 5.0).abs() < 1e-10);
+        assert!((pts[0].y - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_line_arc_endpoint_on_arc() {
+        // Line segment with endpoint exactly on the arc
+        // Circle centered at (5, 0) with radius 5
+        // Arc from 90° to 270° (left semicircle)
+        // Line from (0, 0) to (5, 5)
+        let pts = line_arc_intersection(
+            Point { x: 0.0, y: 0.0 },
+            Point { x: 5.0, y: 5.0 },
+            Point { x: 5.0, y: 0.0 },
+            5.0,
+            90.0,
+            270.0
+        );
+        // The line actually intersects at two points: (0, 0) and (5, 5)
+        // (0, 0) is at 180° from center (5, 0), which is in [90, 270]
+        // (5, 5) is at 90° from center (5, 0), which is in [90, 270]
+        assert_eq!(pts.len(), 2, "Should find both intersections");
+    }
+
+    #[test]
+    fn test_line_arc_tangent_at_endpoint() {
+        // Line tangent to circle at its endpoint
+        // Circle at origin with radius 5
+        // Horizontal line at y=5 from x=-10 to x=0
+        let pts = line_arc_intersection(
+            Point { x: -10.0, y: 5.0 },
+            Point { x: 0.0, y: 5.0 },
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            0.0,
+            180.0  // Top half of circle
+        );
+        assert_eq!(pts.len(), 1, "Should find tangent point at endpoint");
+        assert!((pts[0].x - 0.0).abs() < 1e-10);
+        assert!((pts[0].y - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_line_arc_passes_through_arc_endpoints() {
+        // Line passing through both endpoints of an arc
+        // Arc from (3, 4) to (4, 3) on circle centered at origin with radius 5
+        // This arc goes from ~53.13° to ~36.87°
+        let start_angle = (4.0_f64).atan2(3.0).to_degrees();
+        let end_angle = (3.0_f64).atan2(4.0).to_degrees();
+
+        let pts = line_arc_intersection(
+            Point { x: 0.0, y: 7.0 },
+            Point { x: 7.0, y: 0.0 },
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            end_angle,
+            start_angle
+        );
+        assert_eq!(pts.len(), 2, "Should find both arc endpoints");
+    }
+
+    #[test]
+    fn test_arc_arc_endpoint_touches() {
+        // Two arcs where endpoints touch
+        // Arc1: centered at (0, 0), radius 5, from 0° to 90°
+        //   - starts at (5, 0), ends at (0, 5)
+        // Arc2: centered at (5, 5), radius 5, from 180° to 270°
+        //   - starts at (0, 5), ends at (5, 0)
+        let pts = arc_arc_intersection(
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            0.0,
+            90.0,
+            Point { x: 5.0, y: 5.0 },
+            5.0,
+            180.0,
+            270.0
+        );
+        // These two circles intersect at (0, 5) and (5, 0)
+        // Both points should be on both arcs
+        assert_eq!(pts.len(), 2, "Should find both intersection points");
+        // Verify the points
+        let has_5_0 = pts.iter().any(|p| (p.x - 5.0).abs() < 1e-10 && p.y.abs() < 1e-10);
+        let has_0_5 = pts.iter().any(|p| p.x.abs() < 1e-10 && (p.y - 5.0).abs() < 1e-10);
+        assert!(has_5_0 && has_0_5, "Should have both (5,0) and (0,5)");
+    }
+
+    #[test]
+    fn test_arc_arc_partial_overlap() {
+        // Two arcs that intersect at two points
+        // Arc1: center (0, 0), radius 5, from 0° to 90° (first quadrant)
+        // Arc2: center (6, 0), radius 5, from 90° to 180° (second quadrant relative to its center)
+        // These circles intersect at two points with y > 0 and y < 0
+        let pts = arc_arc_intersection(
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            -60.0,
+            60.0,
+            Point { x: 6.0, y: 0.0 },
+            5.0,
+            120.0,
+            240.0
+        );
+        assert_eq!(pts.len(), 2, "Should find two intersection points");
+        // Verify both points are symmetric about x-axis
+        assert!((pts[0].y + pts[1].y).abs() < 1e-10, "Points should be symmetric about x-axis");
+        assert!(pts[0].y.abs() > 0.1 && pts[1].y.abs() > 0.1, "Points should have non-zero y");
+    }
+
+    #[test]
+    fn test_arc_arc_one_endpoint_on_other_arc() {
+        // Arc1 endpoint lies on Arc2 (but Arc2 endpoint doesn't lie on Arc1)
+        // Arc1: center (0, 0), radius 5, from 0° to 90°
+        //   - starts at (5, 0)
+        //   - ends at (0, 5)
+        // Arc2: center (0, 0), radius 5, from 45° to 180°
+        //   - includes the point (0, 5) which is Arc1's endpoint
+        let pts = arc_arc_intersection(
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            0.0,
+            90.0,
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            45.0,
+            180.0
+        );
+        // Same circle, overlapping arcs - intersection is the overlapping portion
+        // Since they share the same circle, intersection at endpoints/overlap
+        assert!(pts.len() == 0, "Same circle arcs return empty (infinite overlap)");
+    }
+
+    #[test]
+    fn test_line_segment_as_point() {
+        // Degenerate case: line segment is actually a point
+        let pts = line_line_intersection(
+            Point { x: 5.0, y: 5.0 },
+            Point { x: 5.0, y: 5.0 },
+            Point { x: 0.0, y: 5.0 },
+            Point { x: 10.0, y: 5.0 }
+        );
+        assert_eq!(pts.len(), 1, "Point on line should be detected");
+        assert!((pts[0].x - 5.0).abs() < 1e-10);
+        assert!((pts[0].y - 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_line_arc_line_passes_through_center() {
+        // Line passes through the center of the circle
+        let pts = line_arc_intersection(
+            Point { x: -10.0, y: 0.0 },
+            Point { x: 10.0, y: 0.0 },
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            0.0,
+            360.0
+        );
+        assert_eq!(pts.len(), 2, "Line through center intersects at two points");
+        // Should intersect at (-5, 0) and (5, 0)
+        let x_coords: Vec<f64> = pts.iter().map(|p| p.x).collect();
+        assert!(x_coords.contains(&5.0) || (x_coords[0] - 5.0).abs() < 1e-10);
+        assert!(x_coords.contains(&-5.0) || (x_coords[1] + 5.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_arc_with_small_angle_range() {
+        // Very small arc (1 degree) and line intersection
+        let pts = line_arc_intersection(
+            Point { x: 0.0, y: -10.0 },
+            Point { x: 0.0, y: 10.0 },
+            Point { x: 0.0, y: 0.0 },
+            5.0,
+            89.0,  // Very small arc near 90°
+            91.0
+        );
+        assert_eq!(pts.len(), 1, "Should intersect small arc");
+        assert!((pts[0].y - 5.0).abs() < 0.1, "Should be near (0, 5)");
+    }
+
+    #[test]
+    fn test_collinear_overlapping_segments() {
+        // Two collinear segments that overlap
+        let pts = line_line_intersection(
+            Point { x: 0.0, y: 0.0 },
+            Point { x: 10.0, y: 0.0 },
+            Point { x: 5.0, y: 0.0 },
+            Point { x: 15.0, y: 0.0 }
+        );
+        // Current implementation returns empty for collinear (treated as parallel)
+        // This is acceptable as there are infinite intersection points
+        assert_eq!(pts.len(), 0, "Collinear segments return empty");
     }
 }
 

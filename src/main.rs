@@ -6,7 +6,7 @@ mod resolver;
 
 use types::{Point, Shape};
 use resolver::resolve_shape;
-use boolean_ops::find_shape_intersections;
+use boolean_ops::{find_shape_intersections, compute_area, compute_signed_area, is_shape_counter_clockwise};
 use crate::intersection::line_line_intersection;
 
 fn main() {
@@ -163,6 +163,55 @@ fn main() {
         Point { x: 10.0, y: 10.0 }
     );
     println!("  Found {} intersection points (expected: 0)", pts3.len());
+
+    // Test 4: Area calculations
+    println!("\n\nTEST 4: Area Calculations");
+    println!("==========================");
+
+    // Circle area
+    println!("Case 1: Circle area");
+    let circle = resolve_shape(&Shape::Circle {
+        center: Point { x: 0.0, y: 0.0 },
+        radius: 5.0,
+    });
+    let circle_area = compute_area(&circle);
+    let circle_signed_area = compute_signed_area(&circle);
+    println!("  Circle (radius=5):");
+    println!("    Absolute area: {:.4}", circle_area);
+    println!("    Signed area: {:.4}", circle_signed_area);
+    println!("    Expected: {:.4} (π*r²)", std::f64::consts::PI * 25.0);
+    println!("    Counter-clockwise: {}", is_shape_counter_clockwise(&circle));
+
+    // Rectangle area
+    println!("\nCase 2: Rectangle area");
+    let rect = resolve_shape(&Shape::Rectangle {
+        top_left: Point { x: 0.0, y: 0.0 },
+        bottom_right: Point { x: 10.0, y: 5.0 },
+    });
+    let rect_area = compute_area(&rect);
+    let rect_signed_area = compute_signed_area(&rect);
+    println!("  Rectangle (10x5):");
+    println!("    Absolute area: {:.4}", rect_area);
+    println!("    Signed area: {:.4}", rect_signed_area);
+    println!("    Expected: 50.0");
+    println!("    Counter-clockwise: {}", is_shape_counter_clockwise(&rect));
+
+    // Union area
+    println!("\nCase 3: Union area approximation");
+    let c1 = Shape::Circle {
+        center: Point { x: 0.0, y: 0.0 },
+        radius: 5.0,
+    };
+    let c2 = Shape::Circle {
+        center: Point { x: 6.0, y: 0.0 },
+        radius: 5.0,
+    };
+    let union = Shape::Union(Box::new(c1), Box::new(c2));
+    let union_resolved = resolve_shape(&union);
+    let union_area = compute_area(&union_resolved);
+    println!("  Union of two overlapping circles:");
+    println!("    Computed area: {:.4}", union_area);
+    println!("    Note: This is an approximation based on the resolved segments");
 
     println!("\n=== All tests completed successfully ===");
 }

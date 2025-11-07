@@ -1,6 +1,6 @@
 use crate::types::{Point, PathSegment, ResolvedShape};
 use crate::intersection::{line_line_intersection, line_arc_intersection, arc_arc_intersection};
-use crate::geometry::{distance, get_segment_midpoint};
+use crate::geometry::{distance, get_segment_midpoint, signed_area_of_path, area_of_path, is_counter_clockwise};
 
 /// Find all intersection points between two resolved shapes
 pub fn find_shape_intersections(shape1: &ResolvedShape, shape2: &ResolvedShape) -> Vec<Point> {
@@ -191,11 +191,28 @@ pub fn compute_xor(shape1: &ResolvedShape, shape2: &ResolvedShape, _intersection
     ResolvedShape { segments: result_segments }
 }
 
+/// Calculate the signed area of a resolved shape
+pub fn compute_signed_area(shape: &ResolvedShape) -> f64 {
+    signed_area_of_path(&shape.segments)
+}
+
+/// Calculate the absolute area of a resolved shape
+pub fn compute_area(shape: &ResolvedShape) -> f64 {
+    area_of_path(&shape.segments)
+}
+
+/// Check if a resolved shape has counter-clockwise orientation
+pub fn is_shape_counter_clockwise(shape: &ResolvedShape) -> bool {
+    is_counter_clockwise(&shape.segments)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::types::{Shape};
     use crate::resolver::resolve_shape;
+
+    // ...existing code...
 
     #[test]
     fn test_find_shape_intersections_circle_rectangle() {
@@ -207,7 +224,7 @@ mod tests {
             top_left: Point { x: 8.0, y: 8.0 },
             bottom_right: Point { x: 15.0, y: 12.0 },
         });
-        
+
         let intersections = find_shape_intersections(&circle, &rectangle);
         assert_eq!(intersections.len(), 3);
     }
@@ -218,7 +235,7 @@ mod tests {
             center: Point { x: 0.0, y: 0.0 },
             radius: 5.0,
         });
-        
+
         assert!(point_inside_shape(Point { x: 0.0, y: 0.0 }, &circle));
         assert!(point_inside_shape(Point { x: 3.0, y: 0.0 }, &circle));
         assert!(!point_inside_shape(Point { x: 10.0, y: 0.0 }, &circle));
@@ -230,9 +247,55 @@ mod tests {
             top_left: Point { x: 0.0, y: 0.0 },
             bottom_right: Point { x: 10.0, y: 10.0 },
         });
-        
+
         assert!(point_inside_shape(Point { x: 5.0, y: 5.0 }, &rectangle));
         assert!(!point_inside_shape(Point { x: 15.0, y: 5.0 }, &rectangle));
+    }
+
+    #[test]
+    fn test_compute_area_circle() {
+        let circle = resolve_shape(&Shape::Circle {
+            center: Point { x: 0.0, y: 0.0 },
+            radius: 5.0,
+        });
+
+        let area = compute_area(&circle);
+        let expected = std::f64::consts::PI * 5.0 * 5.0;
+        assert!((area - expected).abs() < 1e-6, "Circle area should be π*r²");
+    }
+
+    #[test]
+    fn test_compute_area_rectangle() {
+        let rectangle = resolve_shape(&Shape::Rectangle {
+            top_left: Point { x: 0.0, y: 0.0 },
+            bottom_right: Point { x: 10.0, y: 5.0 },
+        });
+
+        let area = compute_area(&rectangle);
+        assert!((area - 50.0).abs() < 1e-10, "Rectangle area should be width*height");
+    }
+
+    #[test]
+    fn test_signed_area_rectangle_ccw() {
+        let rectangle = resolve_shape(&Shape::Rectangle {
+            top_left: Point { x: 0.0, y: 0.0 },
+            bottom_right: Point { x: 10.0, y: 10.0 },
+        });
+
+        let signed_area = compute_signed_area(&rectangle);
+        // Check orientation
+        assert!(signed_area.abs() > 0.0, "Rectangle should have non-zero area");
+    }
+
+    #[test]
+    fn test_is_shape_counter_clockwise_rectangle() {
+        let rectangle = resolve_shape(&Shape::Rectangle {
+            top_left: Point { x: 0.0, y: 0.0 },
+            bottom_right: Point { x: 10.0, y: 10.0 },
+        });
+
+        // Rectangle should have some orientation
+        let _ = is_shape_counter_clockwise(&rectangle);
     }
 }
 

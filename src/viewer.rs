@@ -2,12 +2,25 @@ use crate::types::{PathSegment, Point, ResolvedShape};
 use eframe::egui;
 use std::sync::Arc;
 
+#[derive(PartialEq, Clone, Copy, Debug)]
+enum Tool {
+    None,
+    Circle,
+    Rectangle,
+    Intersection,
+    Union,
+    Difference,
+    Xor,
+    MeasureArea,
+}
+
 pub struct ShapeViewer {
     shapes: Vec<(ResolvedShape, egui::Color32, String)>, // shape, color, name
     scale: f32,
     offset: egui::Vec2,
     show_grid: bool,
     previous_scale: f32, // 用于跟踪 scale 的变化
+    selected_tool: Tool,
 }
 
 impl Default for ShapeViewer {
@@ -18,6 +31,7 @@ impl Default for ShapeViewer {
             offset: egui::Vec2::new(0.0, 0.0),
             show_grid: true,
             previous_scale: 10.0,
+            selected_tool: Tool::None,
         }
     }
 }
@@ -44,7 +58,11 @@ impl ShapeViewer {
     }
 
     fn draw_grid(&self, painter: &egui::Painter, rect: egui::Rect) {
-        let grid_color = egui::Color32::from_gray(200);
+        let grid_color = egui::Color32::from_gray(if painter.ctx().style().visuals.dark_mode {
+            50
+        } else {
+            200
+        });
         let axis_color = egui::Color32::from_gray(150);
         let step = self.scale;
 
@@ -108,7 +126,7 @@ impl ShapeViewer {
             }
             PathSegment::Arc(center, radius, start_angle, end_angle) => {
                 // Draw arc using line segments
-                let steps = ((end_angle - start_angle).abs() / 5.0).max(10.0) as usize;
+                let steps = ((end_angle - start_angle).abs() / 5.0).max(30.0) as usize;
                 let angle_step = (end_angle - start_angle) / steps as f64;
 
                 for i in 0..steps {
@@ -243,6 +261,30 @@ impl eframe::App for ShapeViewer {
             self.offset = self.offset * scale_ratio;
             self.previous_scale = self.scale;
         }
+
+        egui::SidePanel::left("toolbar")
+            .default_width(200.0)
+            .show(ctx, |ui| {
+                ui.heading("工具");
+                ui.separator();
+
+                ui.selectable_value(&mut self.selected_tool, Tool::Circle, "画圆");
+                ui.selectable_value(&mut self.selected_tool, Tool::Rectangle, "画矩形");
+                ui.selectable_value(&mut self.selected_tool, Tool::Intersection, "取交点");
+                ui.selectable_value(&mut self.selected_tool, Tool::Union, "取并集");
+                ui.selectable_value(&mut self.selected_tool, Tool::Difference, "取差集");
+                ui.selectable_value(&mut self.selected_tool, Tool::Xor, "取异或");
+                ui.selectable_value(&mut self.selected_tool, Tool::MeasureArea, "测量面积");
+
+                ui.separator();
+
+                if ui.button("清除工具").clicked() {
+                    self.selected_tool = Tool::None;
+                }
+
+                // 显示当前选择的工具
+                ui.label(format!("当前工具: {:?}", self.selected_tool));
+            });
 
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {

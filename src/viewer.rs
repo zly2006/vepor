@@ -1,4 +1,4 @@
-use crate::boolean_ops::find_shape_intersections;
+use crate::boolean_ops::{compute_union, find_shape_intersections};
 use crate::geometry::get_shape_bounding_box;
 use crate::types::{PathSegment, Point, ResolvedShape};
 use eframe::egui;
@@ -36,6 +36,7 @@ pub struct ShapeViewer {
     was_dragged: bool,
     selected_shapes: Vec<usize>,
     intersection_points: Vec<Point>,
+    boolean_op_result: Option<ResolvedShape>,
 }
 
 impl Default for ShapeViewer {
@@ -53,6 +54,7 @@ impl Default for ShapeViewer {
             was_dragged: false,
             selected_shapes: Vec::new(),
             intersection_points: Vec::new(),
+            boolean_op_result: None,
         }
     }
 }
@@ -427,7 +429,7 @@ impl ShapeViewer {
             self.draw_grid(&painter, rect);
         }
 
-        if self.selected_tool == Tool::Intersection {
+        if self.selected_tool == Tool::Intersection || self.selected_tool == Tool::Union {
             if response.clicked() {
                 if let Some(mouse_pos) = response.hover_pos() {
                     let world_pos = self.screen_to_world(mouse_pos, rect);
@@ -454,9 +456,20 @@ impl ShapeViewer {
                         if self.selected_shapes.len() == 2 {
                             let shape1 = &self.shapes[self.selected_shapes[0]].0;
                             let shape2 = &self.shapes[self.selected_shapes[1]].0;
-                            self.intersection_points = find_shape_intersections(shape1, shape2);
+                            let intersections = find_shape_intersections(shape1, shape2);
+
+                            match self.selected_tool {
+                                Tool::Intersection => {
+                                    self.intersection_points = intersections;
+                                }
+                                Tool::Union => {
+                                    self.boolean_op_result = Some(compute_union(shape1, shape2, &intersections));
+                                }
+                                _ => {}
+                            }
                         } else {
                             self.intersection_points.clear();
+                            self.boolean_op_result = None;
                         }
                     }
                 }
@@ -485,7 +498,8 @@ impl ShapeViewer {
                     }
                     self.was_dragged = false;
                 }
-            } else if response.clicked() {
+            }
+            else if response.clicked() {
                 if let Some(mouse_pos) = response.hover_pos() {
                     let mut world_pos = self.screen_to_world(mouse_pos, rect);
                     world_pos = self.snap_point(mouse_pos, world_pos, rect);
@@ -553,6 +567,14 @@ impl ShapeViewer {
 
             for segment in &shape.segments {
                 self.draw_path_segment_with_stroke(&painter, rect, segment, &mut current_point, egui::Stroke::new(stroke_width, stroke_color));
+            }
+        }
+
+        if let Some(result_shape) = &self.boolean_op_result {
+            let mut current_point =
+                crate::geometry::get_starting_point(&result_shape.segments).unwrap_or(Point { x: 0.0, y: 0.0 });
+            for segment in &result_shape.segments {
+                self.draw_path_segment(&painter, rect, segment, &mut current_point, egui::Color32::GREEN);
             }
         }
 
@@ -643,6 +665,7 @@ impl eframe::App for ShapeViewer {
                     self.drawing_state = DrawingState::None;
                     self.selected_shapes.clear();
                     self.intersection_points.clear();
+                    self.boolean_op_result = None;
                 }
 
                 ui.separator();

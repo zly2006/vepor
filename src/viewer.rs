@@ -1,4 +1,4 @@
-use crate::boolean_ops::{compute_union, find_shape_intersections};
+use crate::boolean_ops::{compute_subtract, compute_union, compute_xor, find_shape_intersections};
 use crate::geometry::get_shape_bounding_box;
 use crate::types::{PathSegment, Point, ResolvedShape};
 use eframe::egui;
@@ -429,7 +429,11 @@ impl ShapeViewer {
             self.draw_grid(&painter, rect);
         }
 
-        if self.selected_tool == Tool::Intersection || self.selected_tool == Tool::Union {
+        if self.selected_tool == Tool::Intersection
+            || self.selected_tool == Tool::Union
+            || self.selected_tool == Tool::Difference
+            || self.selected_tool == Tool::Xor
+        {
             if response.clicked() {
                 if let Some(mouse_pos) = response.hover_pos() {
                     let world_pos = self.screen_to_world(mouse_pos, rect);
@@ -463,7 +467,16 @@ impl ShapeViewer {
                                     self.intersection_points = intersections;
                                 }
                                 Tool::Union => {
-                                    self.boolean_op_result = Some(compute_union(shape1, shape2, &intersections));
+                                    self.boolean_op_result =
+                                        Some(compute_union(shape1, shape2, &intersections));
+                                }
+                                Tool::Difference => {
+                                    self.boolean_op_result =
+                                        Some(compute_subtract(shape1, shape2, &intersections));
+                                }
+                                Tool::Xor => {
+                                    self.boolean_op_result =
+                                        Some(compute_xor(shape1, shape2, &intersections));
                                 }
                                 _ => {}
                             }
@@ -477,7 +490,8 @@ impl ShapeViewer {
         } else {
             if response.drag_started() {
                 if self.selected_tool == Tool::Hand {
-                } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
+                } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle
+                {
                     if let Some(mouse_pos) = response.hover_pos() {
                         let mut world_pos = self.screen_to_world(mouse_pos, rect);
                         world_pos = self.snap_point(mouse_pos, world_pos, rect);
@@ -498,8 +512,7 @@ impl ShapeViewer {
                     }
                     self.was_dragged = false;
                 }
-            }
-            else if response.clicked() {
+            } else if response.clicked() {
                 if let Some(mouse_pos) = response.hover_pos() {
                     let mut world_pos = self.screen_to_world(mouse_pos, rect);
                     world_pos = self.snap_point(mouse_pos, world_pos, rect);
@@ -561,20 +574,41 @@ impl ShapeViewer {
         for (i, (shape, color, _name)) in self.shapes.iter().enumerate() {
             let mut current_point =
                 crate::geometry::get_starting_point(&shape.segments).unwrap_or(Point { x: 0.0, y: 0.0 });
-            
-            let stroke_width = if self.selected_shapes.contains(&i) { 4.0 } else { 2.0 };
-            let stroke_color = if self.selected_shapes.contains(&i) { egui::Color32::YELLOW } else { *color };
+
+            let stroke_width = if self.selected_shapes.contains(&i) {
+                4.0
+            } else {
+                2.0
+            };
+            let stroke_color = if self.selected_shapes.contains(&i) {
+                egui::Color32::YELLOW
+            } else {
+                *color
+            };
 
             for segment in &shape.segments {
-                self.draw_path_segment_with_stroke(&painter, rect, segment, &mut current_point, egui::Stroke::new(stroke_width, stroke_color));
+                self.draw_path_segment_with_stroke(
+                    &painter,
+                    rect,
+                    segment,
+                    &mut current_point,
+                    egui::Stroke::new(stroke_width, stroke_color),
+                );
             }
         }
 
         if let Some(result_shape) = &self.boolean_op_result {
             let mut current_point =
-                crate::geometry::get_starting_point(&result_shape.segments).unwrap_or(Point { x: 0.0, y: 0.0 });
+                crate::geometry::get_starting_point(&result_shape.segments)
+                    .unwrap_or(Point { x: 0.0, y: 0.0 });
             for segment in &result_shape.segments {
-                self.draw_path_segment(&painter, rect, segment, &mut current_point, egui::Color32::GREEN);
+                self.draw_path_segment(
+                    &painter,
+                    rect,
+                    segment,
+                    &mut current_point,
+                    egui::Color32::GREEN,
+                );
             }
         }
 

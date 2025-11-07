@@ -2,6 +2,17 @@
 
 This document provides instructions for the Gemini Coder to interact with the `vepor` project.
 
+### User Preferences and Key Requirements
+
+*   **Drawing Modes:** The user wants to be able to draw shapes using both click-to-draw and drag-to-draw methods.
+*   **Cancel with Escape:** The user wants to be able to cancel the current drawing operation by pressing the Escape key.
+*   **Control Points:** The user wants to see control points for shapes, and these points should have a "snapping" effect for easier alignment.
+*   **Scrollable UI:** The list of shapes in the UI should be horizontally scrollable to accommodate a large number of items.
+*   **Preserve Functionality:** Do not remove existing functionality unless explicitly asked to do so.
+*   **Use `replace` Tool:** For file modifications, use the `replace` tool instead of shell commands.
+* 每次开始前都要执行检查git状态
+* 不要尝试自己rollback。如果gradle成功及时commit，回滚自己的修改必须使用git来操作。
+
 ### Project Overview
 
 `vepor` is a Rust library for performing boolean operations (Union, Subtract, XOR) on 2D shapes with precise geometric intersection calculations. It is a command-line application that also provides a viewer to visualize the shapes and their intersections.

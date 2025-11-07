@@ -162,6 +162,26 @@ impl ShapeViewer {
         control_points
     }
 
+    fn snap_point(&self, mouse_pos: egui::Pos2, world_pos: Point, rect: egui::Rect) -> Point {
+        if !self.show_control_points {
+            return world_pos;
+        }
+
+        let mut best_snap_point = None;
+        let mut min_dist_sq = self.snap_threshold * self.snap_threshold;
+
+        for point in self.get_all_control_points() {
+            let screen_point = self.world_to_screen(point, rect);
+            let dist_sq = mouse_pos.distance_sq(screen_point);
+            if dist_sq < min_dist_sq {
+                min_dist_sq = dist_sq;
+                best_snap_point = Some(point);
+            }
+        }
+
+        best_snap_point.unwrap_or(world_pos)
+    }
+
     fn draw_path_segment(
         &self,
         painter: &egui::Painter,
@@ -322,7 +342,8 @@ impl ShapeViewer {
                 // Pan
             } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
                 if let Some(mouse_pos) = response.hover_pos() {
-                    let world_pos = self.screen_to_world(mouse_pos, rect);
+                    let mut world_pos = self.screen_to_world(mouse_pos, rect);
+                    world_pos = self.snap_point(mouse_pos, world_pos, rect);
                     self.drawing_state = match self.selected_tool {
                         Tool::Circle => DrawingState::CircleFirstClick(world_pos),
                         Tool::Rectangle => DrawingState::RectangleFirstClick(world_pos),
@@ -333,7 +354,8 @@ impl ShapeViewer {
         } else if response.drag_stopped() {
             if self.was_dragged {
                 if let Some(mouse_pos) = response.hover_pos() {
-                    let world_pos = self.screen_to_world(mouse_pos, rect);
+                    let mut world_pos = self.screen_to_world(mouse_pos, rect);
+                    world_pos = self.snap_point(mouse_pos, world_pos, rect);
                     self.create_shape(world_pos);
                     self.drawing_state = DrawingState::None;
                 }
@@ -342,18 +364,7 @@ impl ShapeViewer {
         } else if response.clicked() {
             if let Some(mouse_pos) = response.hover_pos() {
                 let mut world_pos = self.screen_to_world(mouse_pos, rect);
-
-                // Snap to control points
-                if self.show_control_points {
-                    let all_control_points = self.get_all_control_points();
-                    for point in all_control_points {
-                        let screen_point = self.world_to_screen(point, rect);
-                        if mouse_pos.distance(screen_point) < self.snap_threshold {
-                            world_pos = point;
-                            break;
-                        }
-                    }
-                }
+                world_pos = self.snap_point(mouse_pos, world_pos, rect);
 
                 match self.drawing_state {
                     DrawingState::None => {
@@ -383,18 +394,7 @@ impl ShapeViewer {
         // Draw preview of shape being drawn
         if let Some(mouse_pos) = response.hover_pos() {
             let mut world_pos = self.screen_to_world(mouse_pos, rect);
-
-            // Snap to control points
-            if self.show_control_points {
-                let all_control_points = self.get_all_control_points();
-                for point in all_control_points {
-                    let screen_point = self.world_to_screen(point, rect);
-                    if mouse_pos.distance(screen_point) < self.snap_threshold {
-                        world_pos = point;
-                        break;
-                    }
-                }
-            }
+            world_pos = self.snap_point(mouse_pos, world_pos, rect);
 
             match self.drawing_state {
                 DrawingState::CircleFirstClick(center) => {

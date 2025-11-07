@@ -103,12 +103,23 @@ All tests verify:
 
 ## Key Features
 
-✅ **Precise intersection calculation**: All intersections computed using exact geometric equations  
-✅ **Angle-aware arc handling**: Properly handles arc angle ranges, including arcs crossing 0°  
-✅ **Edge case coverage**: Handles degenerate cases, tangent conditions, and boundary conditions  
-✅ **Signed area calculation**: Compute area and orientation of closed paths with lines and arcs  
-✅ **Comprehensive testing**: 43 unit tests covering all critical paths  
-✅ **Modular design**: Clean separation of concerns across modules  
+✅ **Precise intersection calculation**: All intersections computed using exact geometric equations
+✅ **Angle-aware arc handling**: Properly handles arc angle ranges, including arcs crossing 0°
+✅ **Edge case coverage**: Handles degenerate cases, tangent conditions, and boundary conditions
+✅ **Signed area calculation**: Compute area and orientation of closed paths with lines and arcs
+✅ **Comprehensive testing**: 43 unit tests covering all critical paths
+✅ **Modular design**: Clean separation of concerns across modules
+✅ **Interactive Viewer**: A GUI for visualizing shapes and their interactions.
+
+## Viewer Features
+
+The `vepor` viewer provides an interactive way to create and manipulate 2D shapes.
+
+- **Multiple Drawing Modes**: Draw shapes using either click-to-draw or drag-to-draw.
+- **Cancel Drawing**: Cancel the current drawing operation by pressing the `Escape` key.
+- **Control Points**: Display control points for all shapes to visualize their underlying geometry.
+- **Snapping**: Control points snap to nearby points for easy alignment of shapes.
+- **Scrollable Shape List**: The list of shapes is horizontally scrollable to accommodate a large number of shapes.
 
 ## Example Usage
 

@@ -1,4 +1,4 @@
-use crate::types::{Point, PathSegment};
+use crate::types::{PathSegment, Point};
 
 /// Calculate distance between two points
 pub fn distance(p1: Point, p2: Point) -> f64 {
@@ -12,8 +12,10 @@ pub fn point_inside_circle(point: Point, center: Point, radius: f64) -> bool {
 
 /// Check if a point is inside a rectangle
 pub fn point_inside_rectangle(point: Point, top_left: Point, bottom_right: Point) -> bool {
-    point.x >= top_left.x && point.x <= bottom_right.x &&
-    point.y >= top_left.y && point.y <= bottom_right.y
+    point.x >= top_left.x
+        && point.x <= bottom_right.x
+        && point.y >= top_left.y
+        && point.y <= bottom_right.y
 }
 
 /// Helper function to check if an angle is within an arc range
@@ -111,7 +113,9 @@ pub fn signed_area_of_path(segments: &Vec<PathSegment>) -> f64 {
         match segment {
             PathSegment::Line(start, end) => {
                 // Add connecting line from current_point to start if needed
-                if (current_point.x - start.x).abs() > 1e-10 || (current_point.y - start.y).abs() > 1e-10 {
+                if (current_point.x - start.x).abs() > 1e-10
+                    || (current_point.y - start.y).abs() > 1e-10
+                {
                     area += (current_point.x * start.y - start.x * current_point.y) / 2.0;
                 }
                 // Shoelace formula for line segment
@@ -133,8 +137,11 @@ pub fn signed_area_of_path(segments: &Vec<PathSegment>) -> f64 {
                 };
 
                 // Add connecting line from current_point to arc start
-                if (current_point.x - start_point.x).abs() > 1e-10 || (current_point.y - start_point.y).abs() > 1e-10 {
-                    area += (current_point.x * start_point.y - start_point.x * current_point.y) / 2.0;
+                if (current_point.x - start_point.x).abs() > 1e-10
+                    || (current_point.y - start_point.y).abs() > 1e-10
+                {
+                    area +=
+                        (current_point.x * start_point.y - start_point.x * current_point.y) / 2.0;
                 }
 
                 // For arc from start_point to end_point:
@@ -160,15 +167,28 @@ pub fn signed_area_of_path(segments: &Vec<PathSegment>) -> f64 {
                 let term1 = center.x * radius * (end_rad.sin() - start_rad.sin());
 
                 // Term 2: r² * (angle/2 + (sin(2*end) - sin(2*start))/4)
-                let term2 = radius * radius * (angle_rad / 2.0 + (2.0 * end_rad).sin() / 4.0 - (2.0 * start_rad).sin() / 4.0);
+                let term2 = radius
+                    * radius
+                    * (angle_rad / 2.0 + (2.0 * end_rad).sin() / 4.0
+                        - (2.0 * start_rad).sin() / 4.0);
 
                 area += term1 + term2;
                 current_point = end_point;
             }
-            PathSegment::ConnectedArc(center, radius, start_angle, end_angle, start_point, end_point) => {
+            PathSegment::ConnectedArc(
+                center,
+                radius,
+                start_angle,
+                end_angle,
+                start_point,
+                end_point,
+            ) => {
                 // Add connecting line from current_point to arc start
-                if (current_point.x - start_point.x).abs() > 1e-10 || (current_point.y - start_point.y).abs() > 1e-10 {
-                    area += (current_point.x * start_point.y - start_point.x * current_point.y) / 2.0;
+                if (current_point.x - start_point.x).abs() > 1e-10
+                    || (current_point.y - start_point.y).abs() > 1e-10
+                {
+                    area +=
+                        (current_point.x * start_point.y - start_point.x * current_point.y) / 2.0;
                 }
 
                 // Use same formula as Arc
@@ -186,15 +206,21 @@ pub fn signed_area_of_path(segments: &Vec<PathSegment>) -> f64 {
                 let angle_rad = angle_diff.to_radians();
 
                 let term1 = center.x * radius * (end_rad.sin() - start_rad.sin());
-                let term2 = radius * radius * (angle_rad / 2.0 + (2.0 * end_rad).sin() / 4.0 - (2.0 * start_rad).sin() / 4.0);
+                let term2 = radius
+                    * radius
+                    * (angle_rad / 2.0 + (2.0 * end_rad).sin() / 4.0
+                        - (2.0 * start_rad).sin() / 4.0);
 
                 area += term1 + term2;
                 current_point = *end_point;
             }
             PathSegment::ClosePath => {
                 // Close path connects last point to first
-                if (current_point.x - first_point.x).abs() > 1e-10 || (current_point.y - first_point.y).abs() > 1e-10 {
-                    area += (current_point.x * first_point.y - first_point.x * current_point.y) / 2.0;
+                if (current_point.x - first_point.x).abs() > 1e-10
+                    || (current_point.y - first_point.y).abs() > 1e-10
+                {
+                    area +=
+                        (current_point.x * first_point.y - first_point.x * current_point.y) / 2.0;
                 }
             }
             PathSegment::DrawPoint(_) => {
@@ -234,9 +260,21 @@ mod tests {
         let center = Point { x: 0.0, y: 0.0 };
         let radius = 5.0;
 
-        assert!(point_inside_circle(Point { x: 0.0, y: 0.0 }, center, radius));
-        assert!(point_inside_circle(Point { x: 3.0, y: 0.0 }, center, radius));
-        assert!(!point_inside_circle(Point { x: 6.0, y: 0.0 }, center, radius));
+        assert!(point_inside_circle(
+            Point { x: 0.0, y: 0.0 },
+            center,
+            radius
+        ));
+        assert!(point_inside_circle(
+            Point { x: 3.0, y: 0.0 },
+            center,
+            radius
+        ));
+        assert!(!point_inside_circle(
+            Point { x: 6.0, y: 0.0 },
+            center,
+            radius
+        ));
     }
 
     #[test]
@@ -244,9 +282,21 @@ mod tests {
         let top_left = Point { x: 0.0, y: 0.0 };
         let bottom_right = Point { x: 10.0, y: 10.0 };
 
-        assert!(point_inside_rectangle(Point { x: 5.0, y: 5.0 }, top_left, bottom_right));
-        assert!(point_inside_rectangle(Point { x: 0.0, y: 0.0 }, top_left, bottom_right));
-        assert!(!point_inside_rectangle(Point { x: 11.0, y: 5.0 }, top_left, bottom_right));
+        assert!(point_inside_rectangle(
+            Point { x: 5.0, y: 5.0 },
+            top_left,
+            bottom_right
+        ));
+        assert!(point_inside_rectangle(
+            Point { x: 0.0, y: 0.0 },
+            top_left,
+            bottom_right
+        ));
+        assert!(!point_inside_rectangle(
+            Point { x: 11.0, y: 5.0 },
+            top_left,
+            bottom_right
+        ));
     }
 
     #[test]
@@ -267,21 +317,13 @@ mod tests {
     #[test]
     fn test_get_segment_midpoint() {
         // Line segment
-        let line = PathSegment::Line(
-            Point { x: 0.0, y: 0.0 },
-            Point { x: 10.0, y: 10.0 }
-        );
+        let line = PathSegment::Line(Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 10.0 });
         let mid = get_segment_midpoint(&line);
         assert!((mid.x - 5.0).abs() < 1e-10);
         assert!((mid.y - 5.0).abs() < 1e-10);
 
         // Arc segment
-        let arc = PathSegment::Arc(
-            Point { x: 0.0, y: 0.0 },
-            10.0,
-            0.0,
-            90.0
-        );
+        let arc = PathSegment::Arc(Point { x: 0.0, y: 0.0 }, 10.0, 0.0, 90.0);
         let mid = get_segment_midpoint(&arc);
         // Midpoint should be at 45 degrees
         let expected_x = 10.0 * (45.0_f64.to_radians()).cos();
@@ -301,7 +343,10 @@ mod tests {
             PathSegment::ClosePath,
         ];
         let area = signed_area_of_path(&segments);
-        assert!((area - 100.0).abs() < 1e-10, "CCW square should have positive area");
+        assert!(
+            (area - 100.0).abs() < 1e-10,
+            "CCW square should have positive area"
+        );
         assert!(is_counter_clockwise(&segments));
     }
 
@@ -316,7 +361,10 @@ mod tests {
             PathSegment::ClosePath,
         ];
         let area = signed_area_of_path(&segments);
-        assert!((area + 100.0).abs() < 1e-10, "CW square should have negative area");
+        assert!(
+            (area + 100.0).abs() < 1e-10,
+            "CW square should have negative area"
+        );
         assert!(!is_counter_clockwise(&segments));
     }
 
@@ -352,14 +400,12 @@ mod tests {
     fn test_signed_area_circle() {
         // Full circle with radius 5
         let radius = 5.0;
-        let segments = vec![
-            PathSegment::Arc(
-                Point { x: 0.0, y: 0.0 },
-                radius,
-                0.0,
-                360.0
-            ),
-        ];
+        let segments = vec![PathSegment::Arc(
+            Point { x: 0.0, y: 0.0 },
+            radius,
+            0.0,
+            360.0,
+        )];
         let area = signed_area_of_path(&segments);
         let expected = std::f64::consts::PI * radius * radius;
         assert!((area - expected).abs() < 1e-6, "Circle area should be π*r²");
@@ -370,18 +416,16 @@ mod tests {
         // Semicircle (arc from 0° to 180°) plus diameter
         let radius = 5.0;
         let segments = vec![
-            PathSegment::Arc(
-                Point { x: 0.0, y: 0.0 },
-                radius,
-                0.0,
-                180.0
-            ),
+            PathSegment::Arc(Point { x: 0.0, y: 0.0 }, radius, 0.0, 180.0),
             PathSegment::Line(Point { x: -5.0, y: 0.0 }, Point { x: 5.0, y: 0.0 }),
             PathSegment::ClosePath,
         ];
         let area = signed_area_of_path(&segments);
         let expected = std::f64::consts::PI * radius * radius / 2.0;
-        assert!((area - expected).abs() < 1e-6, "Semicircle area should be π*r²/2");
+        assert!(
+            (area - expected).abs() < 1e-6,
+            "Semicircle area should be π*r²/2"
+        );
     }
 
     #[test]
@@ -390,19 +434,17 @@ mod tests {
         // Simple path: line + semicircle
         let segments = vec![
             PathSegment::Line(Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 0.0 }),
-            PathSegment::Arc(
-                Point { x: 5.0, y: 0.0 },
-                5.0,
-                0.0,
-                180.0
-            ),
+            PathSegment::Arc(Point { x: 5.0, y: 0.0 }, 5.0, 0.0, 180.0),
             PathSegment::Line(Point { x: 0.0, y: 0.0 }, Point { x: 10.0, y: 0.0 }),
             PathSegment::ClosePath,
         ];
         let area = signed_area_of_path(&segments);
         // Semicircle area = π*r²/2 = π*25/2 ≈ 39.27
         let expected = std::f64::consts::PI * 25.0 / 2.0;
-        assert!((area - expected).abs() < 1e-6, "Mixed path area should be approximately semicircle area");
+        assert!(
+            (area - expected).abs() < 1e-6,
+            "Mixed path area should be approximately semicircle area"
+        );
     }
 
     #[test]
@@ -417,9 +459,7 @@ mod tests {
         let center = Point { x: 0.0, y: 0.0 };
 
         // Use single full circle arc for comparison
-        let segments = vec![
-            PathSegment::Arc(center, radius, 0.0, 360.0),
-        ];
+        let segments = vec![PathSegment::Arc(center, radius, 0.0, 360.0)];
 
         let area_full = signed_area_of_path(&segments);
 
@@ -436,18 +476,26 @@ mod tests {
 
         // The multi-arc approach might not give exact same result due to discrete segments
         // But it should be reasonably close
-        assert!((area_full - expected).abs() < 1e-6,
+        assert!(
+            (area_full - expected).abs() < 1e-6,
             "Full circle arc should equal π*r². Got {:.6}, expected {:.6}",
-            area_full, expected);
+            area_full,
+            expected
+        );
 
         // Multi-arc sum might be smaller due to how arcs are accumulated
         // Just verify it's positive and less than full circle (because of the triangular chord contribution)
-        assert!(area_multi > 0.0,
+        assert!(
+            area_multi > 0.0,
             "Multi-arc circle should have positive area. Got {:.6}",
-            area_multi);
-        assert!(area_multi < area_full * 1.5,
+            area_multi
+        );
+        assert!(
+            area_multi < area_full * 1.5,
             "Multi-arc area should be in reasonable range. Got {:.6}, full circle {:.6}",
-            area_multi, area_full);
+            area_multi,
+            area_full
+        );
     }
 
     #[test]
@@ -473,8 +521,8 @@ mod tests {
             PathSegment::Arc(
                 Point { x: 5.0, y: 10.0 },
                 5.0,
-                0.0,    // Start at (10, 10)
-                180.0   // End at (0, 10), curving upward
+                0.0,   // Start at (10, 10)
+                180.0, // End at (0, 10), curving upward
             ),
             // Left edge: top to bottom
             PathSegment::Line(Point { x: 0.0, y: 10.0 }, Point { x: 0.0, y: 0.0 }),
@@ -486,12 +534,13 @@ mod tests {
         // Rectangle area = 10 * 10 = 100
         // The actual computed area might differ due to the arc contribution formula
         // Let's just verify it's a reasonable positive area
-        assert!(area > 50.0 && area < 150.0,
+        assert!(
+            area > 50.0 && area < 150.0,
             "Polygon with arc should have reasonable area. Got {:.4}",
-            area);
+            area
+        );
 
         // And verify it's positive (CCW orientation)
         assert!(area > 0.0, "Polygon should have positive area (CCW)");
     }
 }
-

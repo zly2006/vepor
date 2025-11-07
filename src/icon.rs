@@ -7,11 +7,11 @@ pub fn create_app_icon() -> Vec<u8> {
     let mut pixels = vec![0u8; size * size * 4];
 
     // 定义两个圆（按比例放大）
-    let circle1_center = (384.0, 512.0);  // 12 * 32 = 384
-    let circle1_radius = 320.0;            // 10 * 32 = 320
+    let circle1_center = (384.0, 512.0); // 12 * 32 = 384
+    let circle1_radius = 320.0; // 10 * 32 = 320
 
-    let circle2_center = (640.0, 512.0);  // 20 * 32 = 640
-    let circle2_radius = 256.0;            // 8 * 32 = 256
+    let circle2_center = (640.0, 512.0); // 20 * 32 = 640
+    let circle2_radius = 256.0; // 8 * 32 = 256
 
     // 绘制像素
     for y in 0..size {
@@ -26,7 +26,7 @@ pub fn create_app_icon() -> Vec<u8> {
 
             // 判断点是否在圆内或边缘（边缘宽度也按比例放大）
             let in_circle1 = dist1 <= circle1_radius;
-            let on_edge1 = (dist1 - circle1_radius).abs() < 3.0;  // 边缘宽度从1增加到3
+            let on_edge1 = (dist1 - circle1_radius).abs() < 3.0; // 边缘宽度从1增加到3
 
             let in_circle2 = dist2 <= circle2_radius;
             let on_edge2 = (dist2 - circle2_radius).abs() < 3.0;
@@ -34,33 +34,33 @@ pub fn create_app_icon() -> Vec<u8> {
             // 绘制颜色
             if on_edge1 || on_edge2 {
                 // 边缘 - 白色
-                pixels[idx] = 255;     // R
+                pixels[idx] = 255; // R
                 pixels[idx + 1] = 255; // G
                 pixels[idx + 2] = 255; // B
                 pixels[idx + 3] = 255; // A
             } else if in_circle1 && in_circle2 {
                 // 交集 - 黄色
-                pixels[idx] = 255;     // R
+                pixels[idx] = 255; // R
                 pixels[idx + 1] = 255; // G
-                pixels[idx + 2] = 0;   // B
+                pixels[idx + 2] = 0; // B
                 pixels[idx + 3] = 200; // A
             } else if in_circle1 {
                 // 圆1 - 蓝色
-                pixels[idx] = 50;      // R
+                pixels[idx] = 50; // R
                 pixels[idx + 1] = 120; // G
                 pixels[idx + 2] = 255; // B
                 pixels[idx + 3] = 200; // A
             } else if in_circle2 {
                 // 圆2 - 绿色
-                pixels[idx] = 50;      // R
+                pixels[idx] = 50; // R
                 pixels[idx + 1] = 200; // G
                 pixels[idx + 2] = 100; // B
                 pixels[idx + 3] = 200; // A
             } else {
                 // 背景 - 深蓝色
-                pixels[idx] = 20;      // R
-                pixels[idx + 1] = 30;  // G
-                pixels[idx + 2] = 50;  // B
+                pixels[idx] = 20; // R
+                pixels[idx + 1] = 30; // G
+                pixels[idx + 2] = 50; // B
                 pixels[idx + 3] = 255; // A
             }
         }
@@ -78,4 +78,3 @@ pub fn get_icon_data() -> egui::IconData {
         height: 1024,
     }
 }
-

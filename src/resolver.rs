@@ -1,22 +1,24 @@
-use crate::types::{Shape, Point, PathSegment, ResolvedShape};
+use crate::boolean_ops::{compute_subtract, compute_union, compute_xor, find_shape_intersections};
 use crate::geometry::get_starting_point;
-use crate::boolean_ops::{find_shape_intersections, compute_union, compute_subtract, compute_xor};
+use crate::types::{PathSegment, Point, ResolvedShape, Shape};
 
 pub fn resolve_shape(shape: &Shape) -> ResolvedShape {
     match shape {
-        Shape::Circle { center, radius } => {
-            ResolvedShape {
-                segments: vec![PathSegment::Arc(
-                    *center,
-                    *radius,
-                    0.0,
-                    360.0,
-                )],
-            }
-        }
-        Shape::Rectangle { top_left, bottom_right } => {
-            let top_right = Point { x: bottom_right.x, y: top_left.y };
-            let bottom_left = Point { x: top_left.x, y: bottom_right.y };
+        Shape::Circle { center, radius } => ResolvedShape {
+            segments: vec![PathSegment::Arc(*center, *radius, 0.0, 360.0)],
+        },
+        Shape::Rectangle {
+            top_left,
+            bottom_right,
+        } => {
+            let top_right = Point {
+                x: bottom_right.x,
+                y: top_left.y,
+            };
+            let bottom_left = Point {
+                x: top_left.x,
+                y: bottom_right.y,
+            };
             ResolvedShape {
                 segments: vec![
                     PathSegment::Line(*top_left, top_right),
@@ -28,7 +30,8 @@ pub fn resolve_shape(shape: &Shape) -> ResolvedShape {
             }
         }
         Shape::Scale(shape, factor) => {
-            let scale_center = get_starting_point(&resolve_shape(shape).segments).unwrap_or(Point { x: 0.0, y: 0.0 });
+            let scale_center = get_starting_point(&resolve_shape(shape).segments)
+                .unwrap_or(Point { x: 0.0, y: 0.0 });
             let mut resolved = resolve_shape(shape);
             for segment in &mut resolved.segments {
                 match segment {
@@ -151,4 +154,3 @@ mod tests {
         assert!(resolved.segments.len() > 0);
     }
 }
-

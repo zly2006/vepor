@@ -1,6 +1,8 @@
-use crate::types::{Point, PathSegment, ResolvedShape};
-use crate::intersection::{line_line_intersection, line_arc_intersection, arc_arc_intersection};
-use crate::geometry::{distance, get_segment_midpoint, signed_area_of_path, area_of_path, is_counter_clockwise};
+use crate::geometry::{
+    area_of_path, distance, get_segment_midpoint, is_counter_clockwise, signed_area_of_path,
+};
+use crate::intersection::{arc_arc_intersection, line_arc_intersection, line_line_intersection};
+use crate::types::{PathSegment, Point, ResolvedShape};
 
 /// Find all intersection points between two resolved shapes
 pub fn find_shape_intersections(shape1: &ResolvedShape, shape2: &ResolvedShape) -> Vec<Point> {
@@ -18,24 +20,30 @@ pub fn find_shape_intersections(shape1: &ResolvedShape, shape2: &ResolvedShape) 
                 (PathSegment::Arc(c, r, start_angle, end_angle), PathSegment::Line(s, e)) => {
                     line_arc_intersection(*s, *e, *c, *r, *start_angle, *end_angle)
                 }
-                (PathSegment::Arc(c1, r1, start1, end1), PathSegment::Arc(c2, r2, start2, end2)) => {
-                    arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2)
-                }
-                (PathSegment::Line(s, e), PathSegment::ConnectedArc(c, r, start_angle, end_angle, _, _)) => {
-                    line_arc_intersection(*s, *e, *c, *r, *start_angle, *end_angle)
-                }
-                (PathSegment::ConnectedArc(c, r, start_angle, end_angle, _, _), PathSegment::Line(s, e)) => {
-                    line_arc_intersection(*s, *e, *c, *r, *start_angle, *end_angle)
-                }
-                (PathSegment::Arc(c1, r1, start1, end1), PathSegment::ConnectedArc(c2, r2, start2, end2, _, _)) => {
-                    arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2)
-                }
-                (PathSegment::ConnectedArc(c1, r1, start1, end1, _, _), PathSegment::Arc(c2, r2, start2, end2)) => {
-                    arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2)
-                }
-                (PathSegment::ConnectedArc(c1, r1, start1, end1, _, _), PathSegment::ConnectedArc(c2, r2, start2, end2, _, _)) => {
-                    arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2)
-                }
+                (
+                    PathSegment::Arc(c1, r1, start1, end1),
+                    PathSegment::Arc(c2, r2, start2, end2),
+                ) => arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2),
+                (
+                    PathSegment::Line(s, e),
+                    PathSegment::ConnectedArc(c, r, start_angle, end_angle, _, _),
+                ) => line_arc_intersection(*s, *e, *c, *r, *start_angle, *end_angle),
+                (
+                    PathSegment::ConnectedArc(c, r, start_angle, end_angle, _, _),
+                    PathSegment::Line(s, e),
+                ) => line_arc_intersection(*s, *e, *c, *r, *start_angle, *end_angle),
+                (
+                    PathSegment::Arc(c1, r1, start1, end1),
+                    PathSegment::ConnectedArc(c2, r2, start2, end2, _, _),
+                ) => arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2),
+                (
+                    PathSegment::ConnectedArc(c1, r1, start1, end1, _, _),
+                    PathSegment::Arc(c2, r2, start2, end2),
+                ) => arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2),
+                (
+                    PathSegment::ConnectedArc(c1, r1, start1, end1, _, _),
+                    PathSegment::ConnectedArc(c2, r2, start2, end2, _, _),
+                ) => arc_arc_intersection(*c1, *r1, *start1, *end1, *c2, *r2, *start2, *end2),
                 _ => Vec::new(),
             };
             intersections.extend(pts);
@@ -47,7 +55,10 @@ pub fn find_shape_intersections(shape1: &ResolvedShape, shape2: &ResolvedShape) 
 
 /// Check if a point is inside a shape using ray casting algorithm
 pub fn point_inside_shape(point: Point, shape: &ResolvedShape) -> bool {
-    let ray_end = Point { x: point.x + 10000.0, y: point.y };
+    let ray_end = Point {
+        x: point.x + 10000.0,
+        y: point.y,
+    };
     let mut intersection_count = 0;
 
     for segment in &shape.segments {
@@ -58,7 +69,14 @@ pub fn point_inside_shape(point: Point, shape: &ResolvedShape) -> bool {
                 }
             }
             PathSegment::Arc(center, radius, start_angle, end_angle) => {
-                let arc_intersections = line_arc_intersection(point, ray_end, *center, *radius, *start_angle, *end_angle);
+                let arc_intersections = line_arc_intersection(
+                    point,
+                    ray_end,
+                    *center,
+                    *radius,
+                    *start_angle,
+                    *end_angle,
+                );
                 intersection_count += arc_intersections.len();
 
                 // For full circles, also check if point is inside
@@ -69,7 +87,14 @@ pub fn point_inside_shape(point: Point, shape: &ResolvedShape) -> bool {
                 }
             }
             PathSegment::ConnectedArc(center, radius, start_angle, end_angle, _, _) => {
-                let arc_intersections = line_arc_intersection(point, ray_end, *center, *radius, *start_angle, *end_angle);
+                let arc_intersections = line_arc_intersection(
+                    point,
+                    ray_end,
+                    *center,
+                    *radius,
+                    *start_angle,
+                    *end_angle,
+                );
                 intersection_count += arc_intersections.len();
             }
             PathSegment::ClosePath => {}
@@ -83,7 +108,11 @@ pub fn point_inside_shape(point: Point, shape: &ResolvedShape) -> bool {
 }
 
 /// Compute union of two shapes
-pub fn compute_union(shape1: &ResolvedShape, shape2: &ResolvedShape, intersections: &Vec<Point>) -> ResolvedShape {
+pub fn compute_union(
+    shape1: &ResolvedShape,
+    shape2: &ResolvedShape,
+    intersections: &Vec<Point>,
+) -> ResolvedShape {
     let mut result_segments = Vec::new();
 
     // Split segments at intersection points and keep outer boundaries
@@ -123,11 +152,17 @@ pub fn compute_union(shape1: &ResolvedShape, shape2: &ResolvedShape, intersectio
         result_segments.push(PathSegment::ClosePath);
     }
 
-    ResolvedShape { segments: result_segments }
+    ResolvedShape {
+        segments: result_segments,
+    }
 }
 
 /// Compute subtraction of two shapes
-pub fn compute_subtract(shape1: &ResolvedShape, shape2: &ResolvedShape, _intersections: &Vec<Point>) -> ResolvedShape {
+pub fn compute_subtract(
+    shape1: &ResolvedShape,
+    shape2: &ResolvedShape,
+    _intersections: &Vec<Point>,
+) -> ResolvedShape {
     let mut result_segments = Vec::new();
 
     // Keep segments from shape1 that are outside shape2
@@ -160,11 +195,17 @@ pub fn compute_subtract(shape1: &ResolvedShape, shape2: &ResolvedShape, _interse
         result_segments.push(PathSegment::ClosePath);
     }
 
-    ResolvedShape { segments: result_segments }
+    ResolvedShape {
+        segments: result_segments,
+    }
 }
 
 /// Compute XOR of two shapes
-pub fn compute_xor(shape1: &ResolvedShape, shape2: &ResolvedShape, _intersections: &Vec<Point>) -> ResolvedShape {
+pub fn compute_xor(
+    shape1: &ResolvedShape,
+    shape2: &ResolvedShape,
+    _intersections: &Vec<Point>,
+) -> ResolvedShape {
     let mut result_segments = Vec::new();
 
     // Keep segments from shape1 that are outside shape2
@@ -191,7 +232,9 @@ pub fn compute_xor(shape1: &ResolvedShape, shape2: &ResolvedShape, _intersection
         result_segments.push(PathSegment::ClosePath);
     }
 
-    ResolvedShape { segments: result_segments }
+    ResolvedShape {
+        segments: result_segments,
+    }
 }
 
 /// Calculate the signed area of a resolved shape
@@ -212,8 +255,8 @@ pub fn is_shape_counter_clockwise(shape: &ResolvedShape) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Shape};
     use crate::resolver::resolve_shape;
+    use crate::types::Shape;
 
     // ...existing code...
 
@@ -275,7 +318,10 @@ mod tests {
         });
 
         let area = compute_area(&rectangle);
-        assert!((area - 50.0).abs() < 1e-10, "Rectangle area should be width*height");
+        assert!(
+            (area - 50.0).abs() < 1e-10,
+            "Rectangle area should be width*height"
+        );
     }
 
     #[test]
@@ -287,7 +333,10 @@ mod tests {
 
         let signed_area = compute_signed_area(&rectangle);
         // Check orientation
-        assert!(signed_area.abs() > 0.0, "Rectangle should have non-zero area");
+        assert!(
+            signed_area.abs() > 0.0,
+            "Rectangle should have non-zero area"
+        );
     }
 
     #[test]
@@ -301,4 +350,3 @@ mod tests {
         let _ = is_shape_counter_clockwise(&rectangle);
     }
 }
-

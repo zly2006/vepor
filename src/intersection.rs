@@ -1,8 +1,13 @@
-use crate::types::Point;
 use crate::geometry::{distance, is_angle_in_arc};
+use crate::types::Point;
 
 /// Find intersection points between two line segments
-pub fn line_line_intersection(l1_start: Point, l1_end: Point, l2_start: Point, l2_end: Point) -> Vec<Point> {
+pub fn line_line_intersection(
+    l1_start: Point,
+    l1_end: Point,
+    l2_start: Point,
+    l2_end: Point,
+) -> Vec<Point> {
     let mut intersections = Vec::new();
 
     let x1 = l1_start.x;
@@ -79,7 +84,14 @@ pub fn line_line_intersection(l1_start: Point, l1_end: Point, l2_start: Point, l
 }
 
 /// Find intersection points between a line segment and a circle arc
-pub fn line_arc_intersection(line_start: Point, line_end: Point, center: Point, radius: f64, start_angle: f64, end_angle: f64) -> Vec<Point> {
+pub fn line_arc_intersection(
+    line_start: Point,
+    line_end: Point,
+    center: Point,
+    radius: f64,
+    start_angle: f64,
+    end_angle: f64,
+) -> Vec<Point> {
     let mut intersections = Vec::new();
 
     let dx = line_end.x - line_start.x;
@@ -144,7 +156,16 @@ pub fn line_arc_intersection(line_start: Point, line_end: Point, center: Point, 
 }
 
 /// Find intersection points between two circle arcs
-pub fn arc_arc_intersection(c1: Point, r1: f64, start1: f64, end1: f64, c2: Point, r2: f64, start2: f64, end2: f64) -> Vec<Point> {
+pub fn arc_arc_intersection(
+    c1: Point,
+    r1: f64,
+    start1: f64,
+    end1: f64,
+    c2: Point,
+    r2: f64,
+    start2: f64,
+    end2: f64,
+) -> Vec<Point> {
     let mut intersections = Vec::new();
 
     let d = distance(c1, c2);
@@ -187,7 +208,11 @@ pub fn arc_arc_intersection(c1: Point, r1: f64, start1: f64, end1: f64, c2: Poin
         return intersections; // No real intersection
     }
 
-    let h = if h_squared < 0.0 { 0.0 } else { h_squared.sqrt() };
+    let h = if h_squared < 0.0 {
+        0.0
+    } else {
+        h_squared.sqrt()
+    };
 
     let px = c1.x + a * (c2.x - c1.x) / d;
     let py = c1.y + a * (c2.y - c1.y) / d;
@@ -229,7 +254,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             Point { x: 10.0, y: 10.0 },
             Point { x: 0.0, y: 10.0 },
-            Point { x: 10.0, y: 0.0 }
+            Point { x: 10.0, y: 0.0 },
         );
         assert_eq!(pts.len(), 1);
         assert!((pts[0].x - 5.0).abs() < 1e-10);
@@ -242,7 +267,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             Point { x: 10.0, y: 0.0 },
             Point { x: 0.0, y: 5.0 },
-            Point { x: 10.0, y: 5.0 }
+            Point { x: 10.0, y: 5.0 },
         );
         assert_eq!(pts.len(), 0);
     }
@@ -253,7 +278,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             Point { x: 2.0, y: 2.0 },
             Point { x: 5.0, y: 5.0 },
-            Point { x: 10.0, y: 10.0 }
+            Point { x: 10.0, y: 10.0 },
         );
         assert_eq!(pts.len(), 0);
     }
@@ -266,7 +291,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             5.0,
             0.0,
-            360.0
+            360.0,
         );
         assert_eq!(pts.len(), 2);
     }
@@ -281,7 +306,7 @@ mod tests {
             Point { x: 6.0, y: 0.0 },
             5.0,
             0.0,
-            360.0
+            360.0,
         );
         assert_eq!(pts.len(), 2);
     }
@@ -296,7 +321,7 @@ mod tests {
             Point { x: 6.0, y: 0.0 },
             3.0,
             0.0,
-            360.0
+            360.0,
         );
         assert_eq!(pts.len(), 1);
         assert!((pts[0].x - 3.0).abs() < 1e-10);
@@ -313,7 +338,7 @@ mod tests {
             Point { x: 10.0, y: 0.0 },
             2.0,
             0.0,
-            360.0
+            360.0,
         );
         assert_eq!(pts.len(), 0);
     }
@@ -327,7 +352,7 @@ mod tests {
             Point { x: -5.0, y: 0.0 },
             Point { x: 0.0, y: 0.0 },
             Point { x: 0.0, y: 0.0 },
-            Point { x: 5.0, y: 5.0 }
+            Point { x: 5.0, y: 5.0 },
         );
         assert_eq!(pts.len(), 1, "Should find endpoint intersection");
         assert!((pts[0].x - 0.0).abs() < 1e-10);
@@ -341,7 +366,7 @@ mod tests {
             Point { x: 0.0, y: 5.0 },
             Point { x: 5.0, y: 5.0 },
             Point { x: 0.0, y: 0.0 },
-            Point { x: 0.0, y: 10.0 }
+            Point { x: 0.0, y: 10.0 },
         );
         assert_eq!(pts.len(), 1, "Should find intersection at endpoint");
         assert!((pts[0].x - 0.0).abs() < 1e-10);
@@ -355,7 +380,7 @@ mod tests {
             Point { x: 5.0, y: 0.0 },
             Point { x: 5.0, y: 5.0 },
             Point { x: 0.0, y: 5.0 },
-            Point { x: 10.0, y: 5.0 }
+            Point { x: 10.0, y: 5.0 },
         );
         assert_eq!(pts.len(), 1, "Should find T-intersection");
         assert!((pts[0].x - 5.0).abs() < 1e-10);
@@ -374,7 +399,7 @@ mod tests {
             Point { x: 5.0, y: 0.0 },
             5.0,
             90.0,
-            270.0
+            270.0,
         );
         // The line actually intersects at two points: (0, 0) and (5, 5)
         // (0, 0) is at 180° from center (5, 0), which is in [90, 270]
@@ -393,7 +418,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             5.0,
             0.0,
-            180.0  // Top half of circle
+            180.0, // Top half of circle
         );
         assert_eq!(pts.len(), 1, "Should find tangent point at endpoint");
         assert!((pts[0].x - 0.0).abs() < 1e-10);
@@ -414,7 +439,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             5.0,
             end_angle,
-            start_angle
+            start_angle,
         );
         assert_eq!(pts.len(), 2, "Should find both arc endpoints");
     }
@@ -434,14 +459,18 @@ mod tests {
             Point { x: 5.0, y: 5.0 },
             5.0,
             180.0,
-            270.0
+            270.0,
         );
         // These two circles intersect at (0, 5) and (5, 0)
         // Both points should be on both arcs
         assert_eq!(pts.len(), 2, "Should find both intersection points");
         // Verify the points
-        let has_5_0 = pts.iter().any(|p| (p.x - 5.0).abs() < 1e-10 && p.y.abs() < 1e-10);
-        let has_0_5 = pts.iter().any(|p| p.x.abs() < 1e-10 && (p.y - 5.0).abs() < 1e-10);
+        let has_5_0 = pts
+            .iter()
+            .any(|p| (p.x - 5.0).abs() < 1e-10 && p.y.abs() < 1e-10);
+        let has_0_5 = pts
+            .iter()
+            .any(|p| p.x.abs() < 1e-10 && (p.y - 5.0).abs() < 1e-10);
         assert!(has_5_0 && has_0_5, "Should have both (5,0) and (0,5)");
     }
 
@@ -459,12 +488,18 @@ mod tests {
             Point { x: 6.0, y: 0.0 },
             5.0,
             120.0,
-            240.0
+            240.0,
         );
         assert_eq!(pts.len(), 2, "Should find two intersection points");
         // Verify both points are symmetric about x-axis
-        assert!((pts[0].y + pts[1].y).abs() < 1e-10, "Points should be symmetric about x-axis");
-        assert!(pts[0].y.abs() > 0.1 && pts[1].y.abs() > 0.1, "Points should have non-zero y");
+        assert!(
+            (pts[0].y + pts[1].y).abs() < 1e-10,
+            "Points should be symmetric about x-axis"
+        );
+        assert!(
+            pts[0].y.abs() > 0.1 && pts[1].y.abs() > 0.1,
+            "Points should have non-zero y"
+        );
     }
 
     #[test]
@@ -483,11 +518,14 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             5.0,
             45.0,
-            180.0
+            180.0,
         );
         // Same circle, overlapping arcs - intersection is the overlapping portion
         // Since they share the same circle, intersection at endpoints/overlap
-        assert!(pts.len() == 0, "Same circle arcs return empty (infinite overlap)");
+        assert!(
+            pts.len() == 0,
+            "Same circle arcs return empty (infinite overlap)"
+        );
     }
 
     #[test]
@@ -497,7 +535,7 @@ mod tests {
             Point { x: 5.0, y: 5.0 },
             Point { x: 5.0, y: 5.0 },
             Point { x: 0.0, y: 5.0 },
-            Point { x: 10.0, y: 5.0 }
+            Point { x: 10.0, y: 5.0 },
         );
         assert_eq!(pts.len(), 1, "Point on line should be detected");
         assert!((pts[0].x - 5.0).abs() < 1e-10);
@@ -513,7 +551,7 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             5.0,
             0.0,
-            360.0
+            360.0,
         );
         assert_eq!(pts.len(), 2, "Line through center intersects at two points");
         // Should intersect at (-5, 0) and (5, 0)
@@ -530,8 +568,8 @@ mod tests {
             Point { x: 0.0, y: 10.0 },
             Point { x: 0.0, y: 0.0 },
             5.0,
-            89.0,  // Very small arc near 90°
-            91.0
+            89.0, // Very small arc near 90°
+            91.0,
         );
         assert_eq!(pts.len(), 1, "Should intersect small arc");
         assert!((pts[0].y - 5.0).abs() < 0.1, "Should be near (0, 5)");
@@ -544,11 +582,10 @@ mod tests {
             Point { x: 0.0, y: 0.0 },
             Point { x: 10.0, y: 0.0 },
             Point { x: 5.0, y: 0.0 },
-            Point { x: 15.0, y: 0.0 }
+            Point { x: 15.0, y: 0.0 },
         );
         // Current implementation returns empty for collinear (treated as parallel)
         // This is acceptable as there are infinite intersection points
         assert_eq!(pts.len(), 0, "Collinear segments return empty");
     }
 }
-

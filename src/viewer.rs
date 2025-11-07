@@ -1,5 +1,5 @@
+use crate::types::{PathSegment, Point, ResolvedShape};
 use eframe::egui;
-use crate::types::{Point, PathSegment, ResolvedShape};
 use std::sync::Arc;
 
 pub struct ShapeViewer {
@@ -48,28 +48,46 @@ impl ShapeViewer {
         let axis_color = egui::Color32::from_gray(150);
         let step = self.scale;
 
-        let center = rect.center();
+        // When zoomed out too far, drawing a grid is messy and slow.
+        if step < 4.0 {
+            return;
+        }
+
+        let screen_origin = rect.center() + self.offset;
 
         // Draw vertical lines
-        let mut x = center.x % step;
-        while x < rect.max.x {
-            let color = if (x - center.x).abs() < 0.1 { axis_color } else { grid_color };
-            painter.line_segment(
-                [egui::pos2(x, rect.min.y), egui::pos2(x, rect.max.y)],
-                egui::Stroke::new(if color == axis_color { 2.0 } else { 1.0 }, color),
-            );
-            x += step;
+        if step > 0.0 {
+            let start_k = ((rect.min.x - screen_origin.x) / step).floor() as i32;
+            let end_k = ((rect.max.x - screen_origin.x) / step).ceil() as i32;
+
+            for k in start_k..=end_k {
+                let x = screen_origin.x + k as f32 * step;
+                let is_axis = k == 0;
+                let color = if is_axis { axis_color } else { grid_color };
+                painter.line_segment(
+                    [egui::pos2(x, rect.min.y), egui::pos2(x, rect.max.y)],
+                    egui::Stroke::new(if is_axis { 2.0 } else { 1.0 }, color),
+                );
+            }
         }
 
         // Draw horizontal lines
-        let mut y = center.y % step;
-        while y < rect.max.y {
-            let color = if (y - center.y).abs() < 0.1 { axis_color } else { grid_color };
-            painter.line_segment(
-                [egui::pos2(rect.min.x, y), egui::pos2(rect.max.x, y)],
-                egui::Stroke::new(if color == axis_color { 2.0 } else { 1.0 }, color),
-            );
-            y += step;
+        if step > 0.0 {
+            // world_y is inverted on screen: screen_y = screen_origin.y - world_y * step
+            // So, world_y = (screen_origin.y - screen_y) / step
+            // We need to find the integer range for world_y (k) that is visible on screen.
+            let start_k = ((screen_origin.y - rect.max.y) / step).floor() as i32;
+            let end_k = ((screen_origin.y - rect.min.y) / step).ceil() as i32;
+
+            for k in start_k..=end_k {
+                let y = screen_origin.y - k as f32 * step;
+                let is_axis = k == 0;
+                let color = if is_axis { axis_color } else { grid_color };
+                painter.line_segment(
+                    [egui::pos2(rect.min.x, y), egui::pos2(rect.max.x, y)],
+                    egui::Stroke::new(if is_axis { 2.0 } else { 1.0 }, color),
+                );
+            }
         }
     }
 
@@ -116,7 +134,14 @@ impl ShapeViewer {
                     y: center.y + radius * end_angle.to_radians().sin(),
                 };
             }
-            PathSegment::ConnectedArc(center, radius, start_angle, end_angle, _start_pt, end_pt) => {
+            PathSegment::ConnectedArc(
+                center,
+                radius,
+                start_angle,
+                end_angle,
+                _start_pt,
+                end_pt,
+            ) => {
                 // Similar to Arc
                 let steps = ((end_angle - start_angle).abs() / 5.0).max(10.0) as usize;
                 let angle_step = (end_angle - start_angle) / steps as f64;
@@ -148,7 +173,11 @@ impl ShapeViewer {
                 // Draw a point as a small circle
                 let screen_pos = self.world_to_screen(*point, rect);
                 painter.circle_filled(screen_pos, 5.0, color);
-                painter.circle_stroke(screen_pos, 5.0, egui::Stroke::new(1.0, egui::Color32::BLACK));
+                painter.circle_stroke(
+                    screen_pos,
+                    5.0,
+                    egui::Stroke::new(1.0, egui::Color32::BLACK),
+                );
             }
         }
     }
@@ -185,6 +214,36 @@ impl ShapeViewer {
 
 impl eframe::App for ShapeViewer {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // 处理触摸板手势：
+        // - 双指滚动 (scroll_delta) 视为平移
+        // - 双指捏合 (zoom_delta) 视为缩放（保持视觉中心）
+        // egui::Context::input 在较新版本中需要一个闭包来读取 InputState
+        // 我们只需要 scroll_delta 和 zoom_delta，因此在闭包中读取并复制出来
+        let (scroll_delta, zoom) =
+            ctx.input(|input_state| (input_state.smooth_scroll_delta, input_state.zoom_delta()));
+
+        // 平移（双指滑动）
+        if scroll_delta != egui::Vec2::ZERO {
+            // 直接把滚动偏移应用到视图偏移上
+            self.offset += scroll_delta;
+        }
+
+        // 缩放（捏合手势）
+        // egui 的 zoom_delta 通常以 1.0 为无变化（或接近），当有捏合时会返回大于或小于 1.0 的值
+        let zoom = zoom;
+        if (zoom - 1.0).abs() > std::f32::EPSILON {
+            let old_scale = self.scale;
+            self.scale *= zoom;
+            // 同步 offset 以保持视觉中心（与 slider 的行为一致）
+            let scale_ratio = if old_scale.abs() > std::f32::EPSILON {
+                self.scale / old_scale
+            } else {
+                1.0
+            };
+            self.offset = self.offset * scale_ratio;
+            self.previous_scale = self.scale;
+        }
+
         egui::CentralPanel::default().show(ctx, |ui| {
             ui.horizontal(|ui| {
                 ui.heading("Vepor Shape Viewer");
@@ -230,7 +289,9 @@ impl eframe::App for ShapeViewer {
     }
 }
 
-pub fn run_viewer(shapes: Vec<(ResolvedShape, egui::Color32, String)>) -> Result<(), eframe::Error> {
+pub fn run_viewer(
+    shapes: Vec<(ResolvedShape, egui::Color32, String)>,
+) -> Result<(), eframe::Error> {
     // 创建图标
     let icon = crate::icon::get_icon_data();
 
@@ -276,7 +337,11 @@ fn setup_chinese_fonts(ctx: &egui::Context) {
     for (idx, font_path) in font_paths.iter().enumerate() {
         println!("尝试加载字体: {}", font_path);
         if let Ok(font_data) = std::fs::read(font_path) {
-            println!("成功读取字体文件: {} ({} bytes)", font_path, font_data.len());
+            println!(
+                "成功读取字体文件: {} ({} bytes)",
+                font_path,
+                font_data.len()
+            );
             let font_name = format!("ChineseFont{}", idx);
             fonts.font_data.insert(
                 font_name.clone(),
@@ -315,4 +380,3 @@ fn setup_chinese_fonts(ctx: &egui::Context) {
     ctx.set_fonts(fonts);
     println!("字体设置完成");
 }
-

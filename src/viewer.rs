@@ -1,3 +1,5 @@
+use crate::boolean_ops::find_shape_intersections;
+use crate::geometry::get_shape_bounding_box;
 use crate::types::{PathSegment, Point, ResolvedShape};
 use eframe::egui;
 use std::sync::Arc;
@@ -32,6 +34,8 @@ pub struct ShapeViewer {
     selected_tool: Tool,
     drawing_state: DrawingState,
     was_dragged: bool,
+    selected_shapes: Vec<usize>,
+    intersection_points: Vec<Point>,
 }
 
 impl Default for ShapeViewer {
@@ -47,6 +51,8 @@ impl Default for ShapeViewer {
             selected_tool: Tool::Hand,
             drawing_state: DrawingState::None,
             was_dragged: false,
+            selected_shapes: Vec::new(),
+            intersection_points: Vec::new(),
         }
     }
 }
@@ -180,6 +186,92 @@ impl ShapeViewer {
         }
 
         best_snap_point.unwrap_or(world_pos)
+    }
+
+    fn draw_path_segment_with_stroke(
+        &self,
+        painter: &egui::Painter,
+        rect: egui::Rect,
+        segment: &PathSegment,
+        current_point: &mut Point,
+        stroke: egui::Stroke,
+    ) {
+        match segment {
+            PathSegment::Line(start, end) => {
+                let p1 = self.world_to_screen(*start, rect);
+                let p2 = self.world_to_screen(*end, rect);
+                painter.line_segment([p1, p2], stroke);
+                *current_point = *end;
+            }
+            PathSegment::Arc(center, radius, start_angle, end_angle) => {
+                let steps = ((end_angle - start_angle).abs() / 5.0).max(30.0) as usize;
+                let angle_step = (end_angle - start_angle) / steps as f64;
+
+                for i in 0..steps {
+                    let a1 = start_angle + angle_step * i as f64;
+                    let a2 = start_angle + angle_step * (i + 1) as f64;
+
+                    let p1 = Point {
+                        x: center.x + radius * a1.to_radians().cos(),
+                        y: center.y + radius * a1.to_radians().sin(),
+                    };
+                    let p2 = Point {
+                        x: center.x + radius * a2.to_radians().cos(),
+                        y: center.y + radius * a2.to_radians().sin(),
+                    };
+
+                    let screen_p1 = self.world_to_screen(p1, rect);
+                    let screen_p2 = self.world_to_screen(p2, rect);
+                    painter.line_segment([screen_p1, screen_p2], stroke);
+                }
+
+                *current_point = Point {
+                    x: center.x + radius * end_angle.to_radians().cos(),
+                    y: center.y + radius * end_angle.to_radians().sin(),
+                };
+            }
+            PathSegment::ConnectedArc(
+                center,
+                radius,
+                start_angle,
+                end_angle,
+                _start_pt,
+                end_pt,
+            ) => {
+                let steps = ((end_angle - start_angle).abs() / 5.0).max(10.0) as usize;
+                let angle_step = (end_angle - start_angle) / steps as f64;
+
+                for i in 0..steps {
+                    let a1 = start_angle + angle_step * i as f64;
+                    let a2 = start_angle + angle_step * (i + 1) as f64;
+
+                    let p1 = Point {
+                        x: center.x + radius * a1.to_radians().cos(),
+                        y: center.y + radius * a1.to_radians().sin(),
+                    };
+                    let p2 = Point {
+                        x: center.x + radius * a2.to_radians().cos(),
+                        y: center.y + radius * a2.to_radians().sin(),
+                    };
+
+                    let screen_p1 = self.world_to_screen(p1, rect);
+                    let screen_p2 = self.world_to_screen(p2, rect);
+                    painter.line_segment([screen_p1, screen_p2], stroke);
+                }
+
+                *current_point = *end_pt;
+            }
+            PathSegment::ClosePath => {}
+            PathSegment::DrawPoint(point) => {
+                let screen_pos = self.world_to_screen(*point, rect);
+                painter.circle_filled(screen_pos, 5.0, stroke.color);
+                painter.circle_stroke(
+                    screen_pos,
+                    5.0,
+                    egui::Stroke::new(1.0, egui::Color32::BLACK),
+                );
+            }
+        }
     }
 
     fn draw_path_segment(
@@ -331,52 +423,85 @@ impl ShapeViewer {
 
         let rect = response.rect;
 
-        // Draw grid
         if self.show_grid {
             self.draw_grid(&painter, rect);
         }
 
-        // Handle input for panning and drawing
-        if response.drag_started() {
-            if self.selected_tool == Tool::Hand {
-                // Pan
-            } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
+        if self.selected_tool == Tool::Intersection {
+            if response.clicked() {
                 if let Some(mouse_pos) = response.hover_pos() {
-                    let mut world_pos = self.screen_to_world(mouse_pos, rect);
-                    world_pos = self.snap_point(mouse_pos, world_pos, rect);
-                    self.drawing_state = match self.selected_tool {
-                        Tool::Circle => DrawingState::CircleFirstClick(world_pos),
-                        Tool::Rectangle => DrawingState::RectangleFirstClick(world_pos),
-                        _ => DrawingState::None,
-                    };
-                }
-            }
-        } else if response.drag_stopped() {
-            if self.was_dragged {
-                if let Some(mouse_pos) = response.hover_pos() {
-                    let mut world_pos = self.screen_to_world(mouse_pos, rect);
-                    world_pos = self.snap_point(mouse_pos, world_pos, rect);
-                    self.create_shape(world_pos);
-                    self.drawing_state = DrawingState::None;
-                }
-                self.was_dragged = false;
-            }
-        } else if response.clicked() {
-            if let Some(mouse_pos) = response.hover_pos() {
-                let mut world_pos = self.screen_to_world(mouse_pos, rect);
-                world_pos = self.snap_point(mouse_pos, world_pos, rect);
+                    let world_pos = self.screen_to_world(mouse_pos, rect);
 
-                match self.drawing_state {
-                    DrawingState::None => {
+                    let mut clicked_shape_idx = None;
+                    for (i, (shape, _, _)) in self.shapes.iter().enumerate().rev() {
+                        let bbox = get_shape_bounding_box(shape);
+                        if bbox.contains(world_pos) {
+                            clicked_shape_idx = Some(i);
+                            break;
+                        }
+                    }
+
+                    if let Some(idx) = clicked_shape_idx {
+                        if let Some(pos) = self.selected_shapes.iter().position(|&x| x == idx) {
+                            self.selected_shapes.remove(pos);
+                        } else {
+                            self.selected_shapes.push(idx);
+                            if self.selected_shapes.len() > 2 {
+                                self.selected_shapes.remove(0);
+                            }
+                        }
+
+                        if self.selected_shapes.len() == 2 {
+                            let shape1 = &self.shapes[self.selected_shapes[0]].0;
+                            let shape2 = &self.shapes[self.selected_shapes[1]].0;
+                            self.intersection_points = find_shape_intersections(shape1, shape2);
+                        } else {
+                            self.intersection_points.clear();
+                        }
+                    }
+                }
+            }
+        } else {
+            if response.drag_started() {
+                if self.selected_tool == Tool::Hand {
+                } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
+                    if let Some(mouse_pos) = response.hover_pos() {
+                        let mut world_pos = self.screen_to_world(mouse_pos, rect);
+                        world_pos = self.snap_point(mouse_pos, world_pos, rect);
                         self.drawing_state = match self.selected_tool {
                             Tool::Circle => DrawingState::CircleFirstClick(world_pos),
                             Tool::Rectangle => DrawingState::RectangleFirstClick(world_pos),
                             _ => DrawingState::None,
                         };
                     }
-                    _ => {
+                }
+            } else if response.drag_stopped() {
+                if self.was_dragged {
+                    if let Some(mouse_pos) = response.hover_pos() {
+                        let mut world_pos = self.screen_to_world(mouse_pos, rect);
+                        world_pos = self.snap_point(mouse_pos, world_pos, rect);
                         self.create_shape(world_pos);
                         self.drawing_state = DrawingState::None;
+                    }
+                    self.was_dragged = false;
+                }
+            } else if response.clicked() {
+                if let Some(mouse_pos) = response.hover_pos() {
+                    let mut world_pos = self.screen_to_world(mouse_pos, rect);
+                    world_pos = self.snap_point(mouse_pos, world_pos, rect);
+
+                    match self.drawing_state {
+                        DrawingState::None => {
+                            self.drawing_state = match self.selected_tool {
+                                Tool::Circle => DrawingState::CircleFirstClick(world_pos),
+                                Tool::Rectangle => DrawingState::RectangleFirstClick(world_pos),
+                                _ => DrawingState::None,
+                            };
+                        }
+                        _ => {
+                            self.create_shape(world_pos);
+                            self.drawing_state = DrawingState::None;
+                        }
                     }
                 }
             }
@@ -385,13 +510,11 @@ impl ShapeViewer {
         if response.dragged() {
             if self.selected_tool == Tool::Hand {
                 self.offset += response.drag_delta();
-            }
-            else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
+            } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
                 self.was_dragged = true;
             }
         }
 
-        // Draw preview of shape being drawn
         if let Some(mouse_pos) = response.hover_pos() {
             let mut world_pos = self.screen_to_world(mouse_pos, rect);
             world_pos = self.snap_point(mouse_pos, world_pos, rect);
@@ -421,17 +544,18 @@ impl ShapeViewer {
             }
         }
 
-        // Draw all shapes
-        for (shape, color, _name) in &self.shapes {
-            let first_point = crate::geometry::get_starting_point(&shape.segments);
-            let mut current_point = first_point.unwrap_or(Point { x: 0.0, y: 0.0 });
+        for (i, (shape, color, _name)) in self.shapes.iter().enumerate() {
+            let mut current_point =
+                crate::geometry::get_starting_point(&shape.segments).unwrap_or(Point { x: 0.0, y: 0.0 });
+            
+            let stroke_width = if self.selected_shapes.contains(&i) { 4.0 } else { 2.0 };
+            let stroke_color = if self.selected_shapes.contains(&i) { egui::Color32::YELLOW } else { *color };
 
             for segment in &shape.segments {
-                self.draw_path_segment(&painter, rect, segment, &mut current_point, *color);
+                self.draw_path_segment_with_stroke(&painter, rect, segment, &mut current_point, egui::Stroke::new(stroke_width, stroke_color));
             }
         }
 
-        // Draw control points if enabled
         if self.show_control_points {
             for (shape, color, _name) in &self.shapes {
                 let control_points = self.get_control_points(shape);
@@ -440,11 +564,21 @@ impl ShapeViewer {
                         &painter,
                         rect,
                         &PathSegment::DrawPoint(point),
-                        &mut Point { x: 0.0, y: 0.0 }, // current_point is not used for DrawPoint
+                        &mut Point { x: 0.0, y: 0.0 },
                         *color,
                     );
                 }
             }
+        }
+
+        for point in &self.intersection_points {
+            self.draw_path_segment(
+                &painter,
+                rect,
+                &PathSegment::DrawPoint(*point),
+                &mut Point { x: 0.0, y: 0.0 },
+                egui::Color32::RED,
+            );
         }
     }
 }
@@ -507,6 +641,8 @@ impl eframe::App for ShapeViewer {
 
                 if self.selected_tool != previous_tool {
                     self.drawing_state = DrawingState::None;
+                    self.selected_shapes.clear();
+                    self.intersection_points.clear();
                 }
 
                 ui.separator();

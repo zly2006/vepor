@@ -53,6 +53,10 @@ pub fn resolve_shape(shape: &Shape) -> ResolvedShape {
                         end_pt.y = scale_center.y + (*factor) * (end_pt.y - scale_center.y);
                     }
                     PathSegment::ClosePath => {}
+                    PathSegment::DrawPoint(point) => {
+                        point.x = scale_center.x + (*factor) * (point.x - scale_center.x);
+                        point.y = scale_center.y + (*factor) * (point.y - scale_center.y);
+                    }
                 }
             }
             resolved
@@ -121,7 +125,7 @@ mod tests {
         };
         let scaled = Shape::Scale(Box::new(circle), 2.0);
         let resolved = resolve_shape(&scaled);
-        
+
         match resolved.segments[0] {
             PathSegment::Arc(center, radius, _, _) => {
                 assert_eq!(radius, 10.0); // Should be doubled
@@ -142,7 +146,7 @@ mod tests {
         };
         let union = Shape::Union(Box::new(circle), Box::new(rectangle));
         let resolved = resolve_shape(&union);
-        
+
         // Should have segments from both shapes
         assert!(resolved.segments.len() > 0);
     }

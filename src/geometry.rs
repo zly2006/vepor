@@ -62,6 +62,7 @@ pub fn get_starting_point(segments: &Vec<PathSegment>) -> Option<Point> {
             }
             PathSegment::ConnectedArc(_, _, _, _, start_point, _) => return Some(*start_point),
             PathSegment::ClosePath => continue,
+            PathSegment::DrawPoint(point) => return Some(*point),
         }
     }
     None
@@ -91,6 +92,7 @@ pub fn get_segment_midpoint(segment: &PathSegment) -> Point {
             }
         }
         PathSegment::ClosePath => Point { x: 0.0, y: 0.0 },
+        PathSegment::DrawPoint(point) => *point,
     }
 }
 
@@ -194,6 +196,9 @@ pub fn signed_area_of_path(segments: &Vec<PathSegment>) -> f64 {
                 if (current_point.x - first_point.x).abs() > 1e-10 || (current_point.y - first_point.y).abs() > 1e-10 {
                     area += (current_point.x * first_point.y - first_point.x * current_point.y) / 2.0;
                 }
+            }
+            PathSegment::DrawPoint(_) => {
+                // DrawPoint doesn't contribute to area calculation
             }
         }
     }

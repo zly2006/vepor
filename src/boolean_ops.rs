@@ -73,6 +73,9 @@ pub fn point_inside_shape(point: Point, shape: &ResolvedShape) -> bool {
                 intersection_count += arc_intersections.len();
             }
             PathSegment::ClosePath => {}
+            PathSegment::DrawPoint(_) => {
+                // DrawPoint doesn't affect inside/outside testing
+            }
         }
     }
 

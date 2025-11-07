@@ -19,6 +19,7 @@ pub enum PathSegment {
     Arc(Point, f64, f64, f64), // center, radius, start_angle, end_angle
     ConnectedArc(Point, f64, f64, f64, Point, Point), // center, radius, start_angle, end_angle, start_point, end_point
     ClosePath, // closes the current path to the starting point using a straight line
+    DrawPoint(Point), // draws a single point (useful for marking intersection points)
 }
 
 pub struct ResolvedShape {

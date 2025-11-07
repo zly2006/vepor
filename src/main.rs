@@ -4,6 +4,7 @@ mod intersection;
 mod boolean_ops;
 mod resolver;
 mod viewer;
+mod icon;
 
 use crate::types::{PathSegment, ResolvedShape, Point};
 use crate::intersection::arc_arc_intersection;

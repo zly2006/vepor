@@ -231,10 +231,14 @@ impl eframe::App for ShapeViewer {
 }
 
 pub fn run_viewer(shapes: Vec<(ResolvedShape, egui::Color32, String)>) -> Result<(), eframe::Error> {
+    // 创建图标
+    let icon = crate::icon::get_icon_data();
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1024.0, 768.0])
-            .with_title("Vepor - 2D Shape Viewer"),
+            .with_title("Vepor - 2D Shape Viewer")
+            .with_icon(Arc::new(icon)),
         ..Default::default()
     };
 

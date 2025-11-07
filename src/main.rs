@@ -9,17 +9,6 @@ mod viewer;
 use crate::intersection::arc_arc_intersection;
 use crate::types::{PathSegment, Point, ResolvedShape};
 
-/// 计算两个圆的交点
-fn circle_circle_intersection(
-    center1: Point,
-    radius1: f64,
-    center2: Point,
-    radius2: f64,
-) -> Vec<Point> {
-    // 使用完整的圆弧 (0到360度) 来找到交点
-    arc_arc_intersection(center1, radius1, 0.0, 360.0, center2, radius2, 0.0, 360.0)
-}
-
 fn main() {
     println!("=== 圆与圆弧交点计算程序 ===\n");
 
@@ -30,9 +19,8 @@ fn main() {
     // 定义第二个形状（圆弧，而不是完整的圆）
     let circle2_center = Point { x: 6.0, y: 0.0 };
     let circle2_radius = 4.0;
-    // 圆弧范围：从0度到180度（上半圆），这样只会与圆1产生一个交点
-    let arc_start = 0.0;
-    let arc_end = 180.0;
+    let arc_start = 110.0;
+    let arc_end = 230.0;
 
     println!(
         "圆1（蓝色）: 中心 ({}, {}), 半径 {} [完整圆]",

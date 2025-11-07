@@ -18,6 +18,7 @@ enum Tool {
 enum DrawingState {
     None,
     CircleFirstClick(Point),
+    RectangleFirstClick(Point),
 }
 
 pub struct ShapeViewer {
@@ -25,9 +26,12 @@ pub struct ShapeViewer {
     scale: f32,
     offset: egui::Vec2,
     show_grid: bool,
+    show_control_points: bool,
+    snap_threshold: f32,
     previous_scale: f32, // 用于跟踪 scale 的变化
     selected_tool: Tool,
     drawing_state: DrawingState,
+    was_dragged: bool,
 }
 
 impl Default for ShapeViewer {
@@ -37,9 +41,12 @@ impl Default for ShapeViewer {
             scale: 10.0,
             offset: egui::Vec2::new(0.0, 0.0),
             show_grid: true,
+            show_control_points: true,
+            snap_threshold: 10.0,
             previous_scale: 10.0,
             selected_tool: Tool::Hand,
             drawing_state: DrawingState::None,
+            was_dragged: false,
         }
     }
 }
@@ -123,6 +130,36 @@ impl ShapeViewer {
                 );
             }
         }
+    }
+
+    fn get_all_control_points(&self) -> Vec<Point> {
+        let mut all_control_points = Vec::new();
+        for (shape, _, _) in &self.shapes {
+            all_control_points.extend(self.get_control_points(shape));
+        }
+        all_control_points
+    }
+
+    fn get_control_points(&self, shape: &ResolvedShape) -> Vec<Point> {
+        let mut control_points = Vec::new();
+        for segment in &shape.segments {
+            match segment {
+                PathSegment::Line(start, end) => {
+                    control_points.push(*start);
+                    control_points.push(*end);
+                }
+                PathSegment::Arc(center, _, _, _) => {
+                    control_points.push(*center);
+                }
+                PathSegment::ConnectedArc(center, _, _, _, start_pt, end_pt) => {
+                    control_points.push(*center);
+                    control_points.push(*start_pt);
+                    control_points.push(*end_pt);
+                }
+                _ => {}
+            }
+        }
+        control_points
     }
 
     fn draw_path_segment(
@@ -216,6 +253,56 @@ impl ShapeViewer {
         }
     }
 
+    fn create_shape(&mut self, end_point: Point) {
+        match self.drawing_state {
+            DrawingState::CircleFirstClick(center) => {
+                let radius = center.distance_to(end_point);
+                let new_shape = ResolvedShape {
+                    segments: vec![PathSegment::Arc(center, radius, 0.0, 360.0)],
+                };
+                self.add_shape(
+                    new_shape,
+                    egui::Color32::from_rgb(255, 0, 0),
+                    "Circle".to_string(),
+                );
+            }
+            DrawingState::RectangleFirstClick(p1) => {
+                let p2 = end_point;
+                let top_left = Point {
+                    x: p1.x.min(p2.x),
+                    y: p1.y.max(p2.y),
+                };
+                let bottom_right = Point {
+                    x: p1.x.max(p2.x),
+                    y: p1.y.min(p2.y),
+                };
+                let top_right = Point {
+                    x: bottom_right.x,
+                    y: top_left.y,
+                };
+                let bottom_left = Point {
+                    x: top_left.x,
+                    y: bottom_right.y,
+                };
+
+                let new_shape = ResolvedShape {
+                    segments: vec![
+                        PathSegment::Line(top_left, top_right),
+                        PathSegment::Line(top_right, bottom_right),
+                        PathSegment::Line(bottom_right, bottom_left),
+                        PathSegment::Line(bottom_left, top_left),
+                    ],
+                };
+                self.add_shape(
+                    new_shape,
+                    egui::Color32::from_rgb(0, 255, 0),
+                    "Rectangle".to_string(),
+                );
+            }
+            _ => {}
+        }
+    }
+
     pub fn draw(&mut self, ui: &mut egui::Ui) {
         let (response, painter) = ui.allocate_painter(
             egui::Vec2::new(ui.available_width(), ui.available_height()),
@@ -229,45 +316,86 @@ impl ShapeViewer {
             self.draw_grid(&painter, rect);
         }
 
-        // Handle dragging for panning
-        if response.dragged() && self.selected_tool == Tool::Hand {
-            self.offset += response.drag_delta();
-        }
-
-        // Handle clicks for drawing
-        if response.clicked() {
+        // Handle input for panning and drawing
+        if response.drag_started() {
+            if self.selected_tool == Tool::Hand {
+                // Pan
+            } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
+                if let Some(mouse_pos) = response.hover_pos() {
+                    let world_pos = self.screen_to_world(mouse_pos, rect);
+                    self.drawing_state = match self.selected_tool {
+                        Tool::Circle => DrawingState::CircleFirstClick(world_pos),
+                        Tool::Rectangle => DrawingState::RectangleFirstClick(world_pos),
+                        _ => DrawingState::None,
+                    };
+                }
+            }
+        } else if response.drag_stopped() {
+            if self.was_dragged {
+                if let Some(mouse_pos) = response.hover_pos() {
+                    let world_pos = self.screen_to_world(mouse_pos, rect);
+                    self.create_shape(world_pos);
+                    self.drawing_state = DrawingState::None;
+                }
+                self.was_dragged = false;
+            }
+        } else if response.clicked() {
             if let Some(mouse_pos) = response.hover_pos() {
-                let world_pos = self.screen_to_world(mouse_pos, rect);
-                match self.selected_tool {
-                    Tool::Circle => {
-                        match self.drawing_state {
-                            DrawingState::None => {
-                                self.drawing_state = DrawingState::CircleFirstClick(world_pos);
-                            }
-                            DrawingState::CircleFirstClick(center) => {
-                                let radius = center.distance_to(world_pos);
-                                let new_shape = ResolvedShape {
-                                    segments: vec![PathSegment::Arc(
-                                        center, radius, 0.0, 360.0,
-                                    )],
-                                };
-                                self.add_shape(
-                                    new_shape,
-                                    egui::Color32::from_rgb(255, 0, 0),
-                                    "Circle".to_string(),
-                                );
-                                self.drawing_state = DrawingState::None;
-                            }
+                let mut world_pos = self.screen_to_world(mouse_pos, rect);
+
+                // Snap to control points
+                if self.show_control_points {
+                    let all_control_points = self.get_all_control_points();
+                    for point in all_control_points {
+                        let screen_point = self.world_to_screen(point, rect);
+                        if mouse_pos.distance(screen_point) < self.snap_threshold {
+                            world_pos = point;
+                            break;
                         }
                     }
-                    _ => {}
                 }
+
+                match self.drawing_state {
+                    DrawingState::None => {
+                        self.drawing_state = match self.selected_tool {
+                            Tool::Circle => DrawingState::CircleFirstClick(world_pos),
+                            Tool::Rectangle => DrawingState::RectangleFirstClick(world_pos),
+                            _ => DrawingState::None,
+                        };
+                    }
+                    _ => {
+                        self.create_shape(world_pos);
+                        self.drawing_state = DrawingState::None;
+                    }
+                }
+            }
+        }
+
+        if response.dragged() {
+            if self.selected_tool == Tool::Hand {
+                self.offset += response.drag_delta();
+            }
+            else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle {
+                self.was_dragged = true;
             }
         }
 
         // Draw preview of shape being drawn
         if let Some(mouse_pos) = response.hover_pos() {
-            let world_pos = self.screen_to_world(mouse_pos, rect);
+            let mut world_pos = self.screen_to_world(mouse_pos, rect);
+
+            // Snap to control points
+            if self.show_control_points {
+                let all_control_points = self.get_all_control_points();
+                for point in all_control_points {
+                    let screen_point = self.world_to_screen(point, rect);
+                    if mouse_pos.distance(screen_point) < self.snap_threshold {
+                        world_pos = point;
+                        break;
+                    }
+                }
+            }
+
             match self.drawing_state {
                 DrawingState::CircleFirstClick(center) => {
                     let radius = center.distance_to(world_pos);
@@ -277,6 +405,17 @@ impl ShapeViewer {
                         egui::Stroke::new(1.0, egui::Color32::from_rgb(255, 0, 0)),
                     );
                     painter.add(circle);
+                }
+                DrawingState::RectangleFirstClick(p1) => {
+                    let p2 = world_pos;
+                    let screen_p1 = self.world_to_screen(p1, rect);
+                    let screen_p2 = self.world_to_screen(p2, rect);
+                    painter.rect_stroke(
+                        egui::Rect::from_points(&[screen_p1, screen_p2]),
+                        egui::CornerRadius::ZERO,
+                        egui::Stroke::new(1.0, egui::Color32::from_rgb(0, 255, 0)),
+                        egui::StrokeKind::Middle,
+                    );
                 }
                 _ => {}
             }
@@ -289,6 +428,22 @@ impl ShapeViewer {
 
             for segment in &shape.segments {
                 self.draw_path_segment(&painter, rect, segment, &mut current_point, *color);
+            }
+        }
+
+        // Draw control points if enabled
+        if self.show_control_points {
+            for (shape, color, _name) in &self.shapes {
+                let control_points = self.get_control_points(shape);
+                for point in control_points {
+                    self.draw_path_segment(
+                        &painter,
+                        rect,
+                        &PathSegment::DrawPoint(point),
+                        &mut Point { x: 0.0, y: 0.0 }, // current_point is not used for DrawPoint
+                        *color,
+                    );
+                }
             }
         }
     }
@@ -325,6 +480,13 @@ impl eframe::App for ShapeViewer {
             self.offset = self.offset * scale_ratio;
             self.previous_scale = self.scale;
         }
+
+        // Handle escape key to cancel drawing
+        ctx.input(|input_state| {
+            if input_state.key_pressed(egui::Key::Escape) {
+                self.drawing_state = DrawingState::None;
+            }
+        });
 
         egui::SidePanel::left("toolbar")
             .default_width(200.0)
@@ -366,6 +528,7 @@ impl eframe::App for ShapeViewer {
                 }
 
                 ui.checkbox(&mut self.show_grid, "Show Grid");
+                ui.checkbox(&mut self.show_control_points, "Show Control Points");
 
                 ui.label("Zoom:");
                 let old_scale = self.scale;
@@ -382,12 +545,14 @@ impl eframe::App for ShapeViewer {
             ui.separator();
 
             // Shape list
-            ui.horizontal(|ui| {
-                ui.label("Shapes:");
-                for (_shape, color, name) in &self.shapes {
-                    ui.colored_label(*color, name);
-                    ui.separator();
-                }
+            egui::ScrollArea::horizontal().show(ui, |ui| {
+                ui.horizontal(|ui| {
+                    ui.label("Shapes:");
+                    for (_shape, color, name) in &self.shapes {
+                        ui.colored_label(*color, name);
+                        ui.separator();
+                    }
+                });
             });
 
             ui.separator();

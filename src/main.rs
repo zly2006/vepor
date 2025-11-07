@@ -1,106 +1,169 @@
-#[derive(Copy, Clone, Debug)]
-struct Point {
-    x: f64,
-    y: f64,
-}
+mod types;
+mod geometry;
+mod intersection;
+mod boolean_ops;
+mod resolver;
 
-enum Shape {
-    Circle { center: Point, radius: f64 },
-    Rectangle { top_left: Point, bottom_right: Point },
-    Union(Box<Shape>, Box<Shape>),
-    Scale(Box<Shape>, f64),
-    Subtract(Box<Shape>, Box<Shape>),
-    Xor(Box<Shape>, Box<Shape>),
-}
-
-enum PathSegment {
-    Line(Point, Point),
-    Arc(Point, f64, f64, f64), // center, radius, start_angle, end_angle
-    ClosePath, // closes the current path to the starting point using a straight line
-}
-
-struct ResolvedShape {
-    segments: Vec<PathSegment>,
-}
-
-fn get_starting_point(segments: &Vec<PathSegment>) -> Option<Point> {
-    for segment in segments {
-        match segment {
-            PathSegment::Line(start, _) => return Some(*start),
-            PathSegment::Arc(center, radius, start_angle, _) => {
-                let rad = start_angle.to_radians();
-                let start_point = Point {
-                    x: center.x + radius * rad.cos(),
-                    y: center.y + radius * rad.sin(),
-                };
-                return Some(start_point);
-            }
-            PathSegment::ClosePath => continue,
-        }
-    }
-    None
-}
-
-fn resolve_shape(shape: &Shape) -> ResolvedShape {
-    match shape {
-        Shape::Circle { center, radius } => {
-            ResolvedShape {
-                segments: vec![PathSegment::Arc(
-                    *center,
-                    *radius,
-                    0.0,
-                    360.0,
-                )],
-            }
-        }
-        Shape::Rectangle { top_left, bottom_right } => {
-            let top_right = Point { x: bottom_right.x, y: top_left.y };
-            let bottom_left = Point { x: top_left.x, y: bottom_right.y };
-            ResolvedShape {
-                segments: vec![
-                    PathSegment::Line(*top_left, top_right),
-                    PathSegment::Line(top_right, *bottom_right),
-                    PathSegment::Line(*bottom_right, bottom_left),
-                    PathSegment::Line(bottom_left, *top_left),
-                    PathSegment::ClosePath,
-                ],
-            }
-        }
-        Shape::Scale(shape, factor) => {
-            let scale_center = get_starting_point(&resolve_shape(shape).segments).unwrap_or(Point { x: 0.0, y: 0.0 });
-            let mut resolved = resolve_shape(shape);
-            for segment in &mut resolved.segments {
-                match segment {
-                    PathSegment::Line(start, end) => {
-                        start.x = scale_center.x + (*factor) * (start.x - scale_center.x);
-                        start.y = scale_center.y + (*factor) * (start.y - scale_center.y);
-                        end.x = scale_center.x + (*factor) * (end.x - scale_center.x);
-                        end.y = scale_center.y + (*factor) * (end.y - scale_center.y);
-                    }
-                    PathSegment::Arc(center, radius, start_angle, end_angle) => {
-                        center.x = scale_center.x + (*factor) * (center.x - scale_center.x);
-                        center.y = scale_center.y + (*factor) * (center.y - scale_center.y);
-                        *radius *= *factor;
-                    }
-                    PathSegment::ClosePath => {}
-                }
-            }
-            resolved
-        }
-        Shape::Union(shape1, shape2) => {
-            // Placeholder implementation for union resolution
-            let mut resolved1 = resolve_shape(shape1);
-            let resolved2 = resolve_shape(shape2);
-            resolved1.segments.extend(resolved2.segments);
-            resolved1
-        }
-        Shape::Subtract(_, _) | Shape::Xor(_, _) => {
-            // Placeholder for subtract and xor operations
-            ResolvedShape { segments: vec![] }
-        }
-    }
-}
+use types::{Point, Shape};
+use resolver::resolve_shape;
+use boolean_ops::find_shape_intersections;
+use crate::intersection::line_line_intersection;
 
 fn main() {
-    let x = 5;
+    println!("=== Testing Boolean Operations on Shapes ===\n");
+
+    // Test 1: Circle and Rectangle intersection
+    println!("TEST 1: Circle-Rectangle Intersection");
+    println!("=====================================");
+    let circle1 = Shape::Circle {
+        center: Point { x: 10.0, y: 10.0 },
+        radius: 5.0,
+    };
+
+    let rectangle1 = Shape::Rectangle {
+        top_left: Point { x: 8.0, y: 8.0 },
+        bottom_right: Point { x: 15.0, y: 12.0 },
+    };
+
+    // Union
+    println!("1. UNION Operation:");
+    let union_shape = Shape::Union(Box::new(circle1), Box::new(rectangle1));
+    let resolved_union = resolve_shape(&union_shape);
+    println!("   Result: {} segments", resolved_union.segments.len());
+
+    // Show the actual intersections
+    let c1 = resolve_shape(&Shape::Circle {
+        center: Point { x: 10.0, y: 10.0 },
+        radius: 5.0,
+    });
+    let r1 = resolve_shape(&Shape::Rectangle {
+        top_left: Point { x: 8.0, y: 8.0 },
+        bottom_right: Point { x: 15.0, y: 12.0 },
+    });
+    let intersections1 = find_shape_intersections(&c1, &r1);
+    println!("   Intersection points found: {}", intersections1.len());
+    for (i, pt) in intersections1.iter().enumerate() {
+        println!("     Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
+    }
+
+    // Subtract
+    println!("\n2. SUBTRACT Operation:");
+    let circle2 = Shape::Circle {
+        center: Point { x: 10.0, y: 10.0 },
+        radius: 5.0,
+    };
+
+    let rectangle2 = Shape::Rectangle {
+        top_left: Point { x: 8.0, y: 8.0 },
+        bottom_right: Point { x: 15.0, y: 12.0 },
+    };
+
+    let subtract_shape = Shape::Subtract(Box::new(circle2), Box::new(rectangle2));
+    let resolved_subtract = resolve_shape(&subtract_shape);
+    println!("   Result: {} segments", resolved_subtract.segments.len());
+
+    // Xor
+    println!("\n3. XOR Operation:");
+    let circle3 = Shape::Circle {
+        center: Point { x: 10.0, y: 10.0 },
+        radius: 5.0,
+    };
+
+    let rectangle3 = Shape::Rectangle {
+        top_left: Point { x: 8.0, y: 8.0 },
+        bottom_right: Point { x: 15.0, y: 12.0 },
+    };
+
+    let xor_shape = Shape::Xor(Box::new(circle3), Box::new(rectangle3));
+    let resolved_xor = resolve_shape(&xor_shape);
+    println!("   Result: {} segments", resolved_xor.segments.len());
+
+    // Test 2: Two circles with various overlap conditions
+    println!("\n\nTEST 2: Circle-Circle Intersections");
+    println!("====================================");
+
+    // Case 1: Two intersecting circles
+    println!("Case 1: Two intersecting circles");
+    let c1 = resolve_shape(&Shape::Circle {
+        center: Point { x: 0.0, y: 0.0 },
+        radius: 5.0,
+    });
+    let c2 = resolve_shape(&Shape::Circle {
+        center: Point { x: 6.0, y: 0.0 },
+        radius: 5.0,
+    });
+    let ints = find_shape_intersections(&c1, &c2);
+    println!("  Found {} intersection points", ints.len());
+    for (i, pt) in ints.iter().enumerate() {
+        println!("    Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
+    }
+
+    // Case 2: Tangent circles (external)
+    println!("\nCase 2: Externally tangent circles");
+    let c3 = resolve_shape(&Shape::Circle {
+        center: Point { x: 0.0, y: 0.0 },
+        radius: 3.0,
+    });
+    let c4 = resolve_shape(&Shape::Circle {
+        center: Point { x: 6.0, y: 0.0 },
+        radius: 3.0,
+    });
+    let ints2 = find_shape_intersections(&c3, &c4);
+    println!("  Found {} intersection points", ints2.len());
+    for (i, pt) in ints2.iter().enumerate() {
+        println!("    Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
+    }
+
+    // Case 3: Separate circles (no intersection)
+    println!("\nCase 3: Separate circles (no intersection)");
+    let c5 = resolve_shape(&Shape::Circle {
+        center: Point { x: 0.0, y: 0.0 },
+        radius: 2.0,
+    });
+    let c6 = resolve_shape(&Shape::Circle {
+        center: Point { x: 10.0, y: 0.0 },
+        radius: 2.0,
+    });
+    let ints3 = find_shape_intersections(&c5, &c6);
+    println!("  Found {} intersection points (expected: 0)", ints3.len());
+
+    // Test 3: Line-Line intersections with edge cases
+    println!("\n\nTEST 3: Line-Line Intersections");
+    println!("================================");
+
+    // Case 1: Intersecting lines
+    println!("Case 1: Intersecting lines");
+    let pts = line_line_intersection(
+        Point { x: 0.0, y: 0.0 },
+        Point { x: 10.0, y: 10.0 },
+        Point { x: 0.0, y: 10.0 },
+        Point { x: 10.0, y: 0.0 }
+    );
+    println!("  Found {} intersection points", pts.len());
+    for (i, pt) in pts.iter().enumerate() {
+        println!("    Point {}: ({:.4}, {:.4})", i+1, pt.x, pt.y);
+    }
+
+    // Case 2: Parallel lines (no intersection)
+    println!("\nCase 2: Parallel lines");
+    let pts2 = line_line_intersection(
+        Point { x: 0.0, y: 0.0 },
+        Point { x: 10.0, y: 0.0 },
+        Point { x: 0.0, y: 5.0 },
+        Point { x: 10.0, y: 5.0 }
+    );
+    println!("  Found {} intersection points (expected: 0)", pts2.len());
+
+    // Case 3: Non-intersecting segments (lines would intersect but segments don't)
+    println!("\nCase 3: Non-intersecting segments");
+    let pts3 = line_line_intersection(
+        Point { x: 0.0, y: 0.0 },
+        Point { x: 2.0, y: 2.0 },
+        Point { x: 5.0, y: 5.0 },
+        Point { x: 10.0, y: 10.0 }
+    );
+    println!("  Found {} intersection points (expected: 0)", pts3.len());
+
+    println!("\n=== All tests completed successfully ===");
 }
+

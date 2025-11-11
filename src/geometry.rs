@@ -1,4 +1,4 @@
-use crate::types::{PathSegment, Point, ResolvedShape, BoundingBox};
+use crate::types::{BoundingBox, PathSegment, Point, ResolvedShape};
 
 /// Calculate distance between two points
 pub fn distance(p1: Point, p2: Point) -> f64 {
@@ -253,14 +253,23 @@ pub fn get_shape_bounding_box(shape: &ResolvedShape) -> BoundingBox {
             PathSegment::Arc(center, radius, start_angle, end_angle) => {
                 let start_rad = start_angle.to_radians();
                 let end_rad = end_angle.to_radians();
-                points.push(Point { x: center.x + radius * start_rad.cos(), y: center.y + radius * start_rad.sin() });
-                points.push(Point { x: center.x + radius * end_rad.cos(), y: center.y + radius * end_rad.sin() });
+                points.push(Point {
+                    x: center.x + radius * start_rad.cos(),
+                    y: center.y + radius * start_rad.sin(),
+                });
+                points.push(Point {
+                    x: center.x + radius * end_rad.cos(),
+                    y: center.y + radius * end_rad.sin(),
+                });
 
                 let mut current_angle = (start_angle / 90.0).ceil() * 90.0;
                 while current_angle < *end_angle {
                     if is_angle_in_arc(current_angle, *start_angle, *end_angle) {
                         let rad = current_angle.to_radians();
-                        points.push(Point { x: center.x + radius * rad.cos(), y: center.y + radius * rad.sin() });
+                        points.push(Point {
+                            x: center.x + radius * rad.cos(),
+                            y: center.y + radius * rad.sin(),
+                        });
                     }
                     current_angle += 90.0;
                 }
@@ -268,12 +277,15 @@ pub fn get_shape_bounding_box(shape: &ResolvedShape) -> BoundingBox {
             PathSegment::ConnectedArc(center, radius, start_angle, end_angle, start_pt, end_pt) => {
                 points.push(*start_pt);
                 points.push(*end_pt);
-                
+
                 let mut current_angle = (start_angle / 90.0).ceil() * 90.0;
                 while current_angle < *end_angle {
                     if is_angle_in_arc(current_angle, *start_angle, *end_angle) {
                         let rad = current_angle.to_radians();
-                        points.push(Point { x: center.x + radius * rad.cos(), y: center.y + radius * rad.sin() });
+                        points.push(Point {
+                            x: center.x + radius * rad.cos(),
+                            y: center.y + radius * rad.sin(),
+                        });
                     }
                     current_angle += 90.0;
                 }

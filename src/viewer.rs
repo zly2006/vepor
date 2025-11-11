@@ -28,14 +28,12 @@ pub struct ShapeViewer {
     scale: f32,
     offset: egui::Vec2,
     show_grid: bool,
-    show_control_points: bool,
     snap_threshold: f32,
     previous_scale: f32, // 用于跟踪 scale 的变化
     selected_tool: Tool,
     drawing_state: DrawingState,
     was_dragged: bool,
     selected_shapes: Vec<usize>,
-    intersection_points: Vec<Point>,
     boolean_op_result: Option<ResolvedShape>,
 }
 
@@ -46,14 +44,12 @@ impl Default for ShapeViewer {
             scale: 10.0,
             offset: egui::Vec2::new(0.0, 0.0),
             show_grid: true,
-            show_control_points: true,
             snap_threshold: 10.0,
             previous_scale: 10.0,
             selected_tool: Tool::Hand,
             drawing_state: DrawingState::None,
             was_dragged: false,
             selected_shapes: Vec::new(),
-            intersection_points: Vec::new(),
             boolean_op_result: None,
         }
     }
@@ -140,45 +136,23 @@ impl ShapeViewer {
         }
     }
 
-    fn get_all_control_points(&self) -> Vec<Point> {
-        let mut all_control_points = Vec::new();
+    fn get_all_draw_points(&self) -> Vec<Point> {
+        let mut all_draw_points = Vec::new();
         for (shape, _, _) in &self.shapes {
-            all_control_points.extend(self.get_control_points(shape));
-        }
-        all_control_points
-    }
-
-    fn get_control_points(&self, shape: &ResolvedShape) -> Vec<Point> {
-        let mut control_points = Vec::new();
-        for segment in &shape.segments {
-            match segment {
-                PathSegment::Line(start, end) => {
-                    control_points.push(*start);
-                    control_points.push(*end);
+            for segment in &shape.segments {
+                if let PathSegment::DrawPoint(point) = segment {
+                    all_draw_points.push(*point);
                 }
-                PathSegment::Arc(center, _, _, _) => {
-                    control_points.push(*center);
-                }
-                PathSegment::ConnectedArc(center, _, _, _, start_pt, end_pt) => {
-                    control_points.push(*center);
-                    control_points.push(*start_pt);
-                    control_points.push(*end_pt);
-                }
-                _ => {}
             }
         }
-        control_points
+        all_draw_points
     }
 
     fn snap_point(&self, mouse_pos: egui::Pos2, world_pos: Point, rect: egui::Rect) -> Point {
-        if !self.show_control_points {
-            return world_pos;
-        }
-
         let mut best_snap_point = None;
         let mut min_dist_sq = self.snap_threshold * self.snap_threshold;
 
-        for point in self.get_all_control_points() {
+        for point in self.get_all_draw_points() {
             let screen_point = self.world_to_screen(point, rect);
             let dist_sq = mouse_pos.distance_sq(screen_point);
             if dist_sq < min_dist_sq {
@@ -293,7 +267,7 @@ impl ShapeViewer {
             }
             PathSegment::Arc(center, radius, start_angle, end_angle) => {
                 // Draw arc using line segments
-                let steps = ((end_angle - start_angle).abs() / 5.0).max(30.0) as usize;
+                let steps = ((end_angle - start_angle).abs() / 30.0 * self.scale as f64) as usize;
                 let angle_step = (end_angle - start_angle) / steps as f64;
 
                 for i in 0..steps {
@@ -372,7 +346,10 @@ impl ShapeViewer {
             DrawingState::CircleFirstClick(center) => {
                 let radius = center.distance_to(end_point);
                 let new_shape = ResolvedShape {
-                    segments: vec![PathSegment::Arc(center, radius, 0.0, 360.0)],
+                    segments: vec![
+                        PathSegment::Arc(center, radius, 0.0, 360.0),
+                        PathSegment::DrawPoint(center),
+                    ],
                 };
                 self.add_shape(
                     new_shape,
@@ -405,6 +382,10 @@ impl ShapeViewer {
                         PathSegment::Line(top_right, bottom_right),
                         PathSegment::Line(bottom_right, bottom_left),
                         PathSegment::Line(bottom_left, top_left),
+                        PathSegment::DrawPoint(top_left),
+                        PathSegment::DrawPoint(top_right),
+                        PathSegment::DrawPoint(bottom_right),
+                        PathSegment::DrawPoint(bottom_left),
                     ],
                 };
                 self.add_shape(
@@ -464,7 +445,16 @@ impl ShapeViewer {
 
                             match self.selected_tool {
                                 Tool::Intersection => {
-                                    self.intersection_points = intersections;
+                                    self.add_shape(
+                                        ResolvedShape {
+                                            segments: intersections
+                                                .iter()
+                                                .map(|p| PathSegment::DrawPoint(*p))
+                                                .collect(),
+                                        },
+                                        egui::Color32::RED,
+                                        "Intersections".to_string(),
+                                    );
                                 }
                                 Tool::Union => {
                                     self.boolean_op_result =
@@ -481,7 +471,6 @@ impl ShapeViewer {
                                 _ => {}
                             }
                         } else {
-                            self.intersection_points.clear();
                             self.boolean_op_result = None;
                         }
                     }
@@ -490,7 +479,8 @@ impl ShapeViewer {
         } else {
             if response.drag_started() {
                 if self.selected_tool == Tool::Hand {
-                } else if self.selected_tool == Tool::Circle || self.selected_tool == Tool::Rectangle
+                } else if self.selected_tool == Tool::Circle
+                    || self.selected_tool == Tool::Rectangle
                 {
                     if let Some(mouse_pos) = response.hover_pos() {
                         let mut world_pos = self.screen_to_world(mouse_pos, rect);
@@ -572,8 +562,8 @@ impl ShapeViewer {
         }
 
         for (i, (shape, color, _name)) in self.shapes.iter().enumerate() {
-            let mut current_point =
-                crate::geometry::get_starting_point(&shape.segments).unwrap_or(Point { x: 0.0, y: 0.0 });
+            let mut current_point = crate::geometry::get_starting_point(&shape.segments)
+                .unwrap_or(Point { x: 0.0, y: 0.0 });
 
             let stroke_width = if self.selected_shapes.contains(&i) {
                 4.0
@@ -598,9 +588,8 @@ impl ShapeViewer {
         }
 
         if let Some(result_shape) = &self.boolean_op_result {
-            let mut current_point =
-                crate::geometry::get_starting_point(&result_shape.segments)
-                    .unwrap_or(Point { x: 0.0, y: 0.0 });
+            let mut current_point = crate::geometry::get_starting_point(&result_shape.segments)
+                .unwrap_or(Point { x: 0.0, y: 0.0 });
             for segment in &result_shape.segments {
                 self.draw_path_segment(
                     &painter,
@@ -610,31 +599,6 @@ impl ShapeViewer {
                     egui::Color32::GREEN,
                 );
             }
-        }
-
-        if self.show_control_points {
-            for (shape, color, _name) in &self.shapes {
-                let control_points = self.get_control_points(shape);
-                for point in control_points {
-                    self.draw_path_segment(
-                        &painter,
-                        rect,
-                        &PathSegment::DrawPoint(point),
-                        &mut Point { x: 0.0, y: 0.0 },
-                        *color,
-                    );
-                }
-            }
-        }
-
-        for point in &self.intersection_points {
-            self.draw_path_segment(
-                &painter,
-                rect,
-                &PathSegment::DrawPoint(*point),
-                &mut Point { x: 0.0, y: 0.0 },
-                egui::Color32::RED,
-            );
         }
     }
 }
@@ -698,7 +662,6 @@ impl eframe::App for ShapeViewer {
                 if self.selected_tool != previous_tool {
                     self.drawing_state = DrawingState::None;
                     self.selected_shapes.clear();
-                    self.intersection_points.clear();
                     self.boolean_op_result = None;
                 }
 
@@ -721,7 +684,6 @@ impl eframe::App for ShapeViewer {
                 }
 
                 ui.checkbox(&mut self.show_grid, "Show Grid");
-                ui.checkbox(&mut self.show_control_points, "Show Control Points");
 
                 ui.label("Zoom:");
                 let old_scale = self.scale;

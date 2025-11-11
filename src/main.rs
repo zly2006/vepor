@@ -66,6 +66,7 @@ fn main() {
     for point in &intersections {
         intersection_segments.push(PathSegment::DrawPoint(*point));
     }
+    intersection_segments.push(PathSegment::DrawPoint(Point { x: 0f64, y: 0f64 }));
 
     // 准备可视化的形状列表
     let mut shapes = vec![
